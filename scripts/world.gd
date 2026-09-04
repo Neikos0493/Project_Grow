@@ -4,7 +4,7 @@ extends Node2D
 
 const TILE_SIZE := 32
 const MAP_SIZE := Vector2i(40, 24)
-const PLAYER_START_CELL := Vector2i(7, 7)
+const PLAYER_START_CELL := Vector2i(20, 2)
 const SHOP_CELL := Vector2i(15, 9)
 const LOOKOUT_CELL := Vector2i(20, 0)
 const SCENIC_TOP_PIXELS := 288
@@ -25,11 +25,14 @@ const PATH := 2
 const WATER := 3
 const ROCK := 4
 const CLIFF := 5
+const SAND := 6
 
 const GRASS_A := Color("#5a9c62")
 const GRASS_B := Color("#66a868")
 const DIRT_COLOR := Color("#b68a5b")
 const PATH_COLOR := Color("#d0ad68")
+const SAND_A := Color("#d9b86c")
+const SAND_B := Color("#e7cc83")
 const WATER_COLOR := Color("#3e86a5")
 const ROCK_COLOR := Color("#596168")
 const CLIFF_COLOR := Color("#90775b")
@@ -42,11 +45,16 @@ const DEAD_LEAF_MID := Color("#978343")
 const DEAD_LEAF_LIGHT := Color("#b39a4c")
 const DEAD_TRUNK := Color("#493f32")
 const TREE_OUTLINE := Color("#302d27")
+const BEACH_BACKDROP_TEXTURE := preload("res://assets/beach_backdrop.png")
+
+@export_enum("meadow", "pond") var level_variant := "meadow"
 
 var cells: Array[Array] = []
 var farm_tiles: Dictionary = {}
 var drops: Array[Dictionary] = []
-var language := "zh"
+var language := "en"
+var ship_transition_offset := Vector2.ZERO
+var ship_flame_length := 12.0
 var props: Array[Dictionary] = [
 	{"cell": Vector2i(10, 7), "kind": "mailbox", "label": "Read mailbox", "used": false},
 	{"cell": Vector2i(20, 12), "kind": "notice", "label": "Read notice board", "used": false},
@@ -76,6 +84,14 @@ var props: Array[Dictionary] = [
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"
+
+func set_ship_transition_offset(value: Vector2) -> void:
+	ship_transition_offset = value
+	queue_redraw()
+
+func set_ship_flame_length(value: float) -> void:
+	ship_flame_length = value
+	queue_redraw()
 
 func _prop_label(kind: String) -> String:
 	if language != "zh":
@@ -134,11 +150,47 @@ func _generate_map() -> void:
 	_set_rock_cluster([Vector2i(16, 18), Vector2i(17, 18), Vector2i(18, 18)])
 	_set_rock_cluster([Vector2i(6, 15), Vector2i(7, 15), Vector2i(8, 15)])
 	_set_rock_cluster([Vector2i(34, 15), Vector2i(35, 15), Vector2i(35, 16)])
+	if level_variant == "pond":
+		_apply_pond_layout()
 
 	assert(_is_in_bounds(PLAYER_START_CELL))
 	assert(is_walkable(PLAYER_START_CELL))
 	assert(is_walkable(Vector2i(20, 1)))
 	assert(is_walkable(LOOKOUT_CELL))
+
+func _apply_pond_layout() -> void:
+	# The second map is a wide shore: sand, ocean, boardwalks, and small grass dunes.
+	for y in range(1, MAP_SIZE.y - 1):
+		for x in range(1, MAP_SIZE.x - 1):
+			cells[y][x] = SAND
+	for y in range(1, MAP_SIZE.y - 1):
+		for x in range(26, MAP_SIZE.x - 1):
+			cells[y][x] = WATER
+	for x in range(2, 27):
+		cells[14][x] = PATH
+	for y in range(2, 15):
+		cells[y][10] = PATH
+	for y in range(14, MAP_SIZE.y - 2):
+		cells[y][21] = PATH
+	for y in range(5, 11):
+		for x in range(3, 9):
+			cells[y][x] = GRASS
+	for y in range(17, 21):
+		for x in range(12, 19):
+			cells[y][x] = GRASS
+	for cell in [Vector2i(25, 12), Vector2i(25, 13), Vector2i(25, 14), Vector2i(25, 15), Vector2i(26, 14)]:
+		cells[cell.y][cell.x] = PATH
+	_set_rock_cluster([Vector2i(4, 3), Vector2i(5, 3), Vector2i(6, 3)])
+	_set_rock_cluster([Vector2i(15, 6), Vector2i(16, 6), Vector2i(17, 6)])
+	_set_rock_cluster([Vector2i(18, 19), Vector2i(19, 19), Vector2i(20, 19)])
+
+func get_player_start_cell() -> Vector2i:
+	return Vector2i(14, 13) if level_variant == "pond" else PLAYER_START_CELL
+
+func get_level_title() -> String:
+	if level_variant == "pond":
+		return "日落海岸" if language == "zh" else "SUNSET SHORE"
+	return "绿野" if language == "zh" else "GREENMEADOW"
 
 func get_camera_top_limit() -> int:
 	return -SCENIC_TOP_PIXELS
@@ -277,6 +329,8 @@ func _draw() -> void:
 	_draw_backdrop()
 	_draw_distant_tree_line()
 	_draw_world_tree()
+	if level_variant == "pond":
+		_draw_beach_details()
 
 	for y in range(MAP_SIZE.y):
 		for x in range(MAP_SIZE.x):
@@ -316,6 +370,10 @@ func _draw_farm_tile(cell: Vector2i, farm: Dictionary) -> void:
 		draw_circle(cell_to_world(cell) + Vector2(0, -2), 4.0, Color("#2e8249"))
 
 func _draw_backdrop() -> void:
+	if level_variant == "pond":
+		draw_texture_rect_region(BEACH_BACKDROP_TEXTURE, Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), Rect2(0, 0, 1536, 300))
+		draw_rect(Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), Color(1.0, 0.72, 0.4, 0.12), true)
+		return
 	# The negative-Y band is a distant valley, not extra walkable map space.
 	draw_rect(Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), SCENIC_SKY)
 	draw_colored_polygon(PackedVector2Array([
@@ -338,6 +396,16 @@ func _draw_backdrop() -> void:
 	for index in range(3):
 		var mist_y := -42.0 - float(index) * 47.0
 		draw_line(Vector2(18, mist_y), Vector2(1262, mist_y - 8.0), Color(0.75, 0.82, 0.78, 0.12), 11.0)
+
+func _draw_beach_details() -> void:
+	for point in [Vector2(118, 142), Vector2(420, 318), Vector2(690, 594), Vector2(248, 670), Vector2(565, 438)]:
+		draw_circle(point, 3.0, Color("#f6e1a3"))
+		draw_arc(point + Vector2(7, 0), 6.0, 0.2, 2.6, 14, Color("#b87c59"), 1.5)
+	for base in [Vector2(82, 470), Vector2(610, 188)]:
+		draw_line(base, base + Vector2(5, -58), Color("#75503b"), 7.0)
+		draw_line(base + Vector2(5, -52), base + Vector2(-26, -76), Color("#356d51"), 5.0)
+		draw_line(base + Vector2(5, -48), base + Vector2(28, -79), Color("#3f8056"), 5.0)
+		draw_line(base + Vector2(5, -48), base + Vector2(8, -88), Color("#4c8e5b"), 5.0)
 
 func _draw_distant_tree_line() -> void:
 	var base := cell_to_world(LOOKOUT_CELL) + Vector2(0, -8)
@@ -439,6 +507,8 @@ func _tile_color(tile_type: int, cell: Vector2i) -> Color:
 			return ROCK_COLOR
 		CLIFF:
 			return CLIFF_COLOR
+		SAND:
+			return SAND_B if (cell.x * 3 + cell.y * 5) % 7 == 0 else SAND_A
 		_:
 			return GRASS_B if (cell.x * 3 + cell.y * 5) % 7 == 0 else GRASS_A
 
@@ -477,6 +547,7 @@ func _draw_prop(prop: Dictionary) -> void:
 			draw_line(center + Vector2(-20, 8), center + Vector2(20, 8), Color("#5a4938"), 2.0)
 		"spaceship":
 			# A simple beacon ship marks the in-world level navigation point.
+			center += ship_transition_offset
 			_draw_flat_ellipse(center + Vector2(0, 9), Vector2(20, 5), Color(0.05, 0.1, 0.1, 0.3))
 			draw_colored_polygon(PackedVector2Array([
 				center + Vector2(-24, 2), center + Vector2(-12, -10), center + Vector2(13, -10),
@@ -489,6 +560,13 @@ func _draw_prop(prop: Dictionary) -> void:
 			]), outline, 2.0, true)
 			draw_circle(center + Vector2(0, -1), 7.0, Color("#3e86a5"))
 			draw_circle(center + Vector2(0, -2), 3.0, Color("#e7c66d"))
+			if ship_flame_length > 0.0:
+				draw_colored_polygon(PackedVector2Array([
+					center + Vector2(-8, 10), center + Vector2(0, 10 + ship_flame_length), center + Vector2(8, 10),
+				]), Color("#d66b58"))
+				draw_colored_polygon(PackedVector2Array([
+					center + Vector2(-4, 10), center + Vector2(0, 8 + ship_flame_length * 0.7), center + Vector2(4, 10),
+				]), Color("#f3c969"))
 			draw_line(center + Vector2(-15, 7), center + Vector2(-20, 14), Color("#d66b58"), 3.0)
 			draw_line(center + Vector2(15, 7), center + Vector2(20, 14), Color("#d66b58"), 3.0)
 

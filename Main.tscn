@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/inventory_hud.gd" id="7_inventory_hud"]
 [ext_resource type="Script" path="res://scripts/shop_panel.gd" id="8_shop_panel"]
 [ext_resource type="Script" path="res://scripts/radar_panel.gd" id="9_radar_panel"]
+[ext_resource type="Script" path="res://scripts/travel_transition.gd" id="10_travel_transition"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 9.0
@@ -402,6 +403,17 @@ theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
 theme_override_colors/font_hover_color = Color(1, 0.96, 0.72, 1)
 theme_override_font_sizes/font_size = 20
 text = "X"
+
+[node name="TravelTransition" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+z_index = 200
+mouse_filter = 2
+script = ExtResource("10_travel_transition")
 
 [node name="CursorLayer" type="CanvasLayer" parent="."]
 layer = 20

@@ -10,7 +10,7 @@ signal close_pressed
 @onready var tree_point: Button = $TreePoint
 @onready var title_label: Label = $Title
 
-var language := "zh"
+var language := "en"
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"

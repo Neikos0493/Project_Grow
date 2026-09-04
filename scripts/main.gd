@@ -28,6 +28,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
 @onready var radar_panel: Control = $HUD/RadarPanel
+@onready var travel_transition: Control = $HUD/TravelTransition
 @onready var prompt_box: ColorRect = $HUD/PromptBox
 @onready var prompt_label: Label = $HUD/PromptBox/Prompt
 @onready var toast_box: ColorRect = $HUD/ToastBox
@@ -36,7 +37,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
 
 var coins := STARTING_COINS
-var language := "zh"
+var language := "en"
 var shop_open := false
 var radar_open := false
 var plant_entities: Dictionary = {}
@@ -54,7 +55,7 @@ func _ready() -> void:
 	shop_panel.set_language(language)
 	radar_panel.set_language(language)
 	_apply_game_language()
-	player.position = world.cell_to_world(world.PLAYER_START_CELL)
+	player.position = world.cell_to_world(world.get_player_start_cell())
 	shop.position = world.get_shop_ground_position()
 	player.z_index = 10
 	_update_depth_order()
@@ -88,18 +89,36 @@ func _ready() -> void:
 	_refresh_inventory()
 	_refresh_coins()
 	_show_toast(_msg("Explore the meadow. Find the mailbox.", "探索草甸，找到邮箱。"))
+	if world.level_variant == "pond":
+		call_deferred("_play_arrival")
 
+func _play_arrival() -> void:
+	player.controls_locked = true
+	var player_target := world.cell_to_world(world.get_player_start_cell())
+	player.position = world.cell_to_world(Vector2i(20, 1)) + Vector2(0, 4)
+	world.set_ship_transition_offset(Vector2(0, -220))
+	world.set_ship_flame_length(48.0)
+	var ship_tween := create_tween().set_parallel(true)
+	ship_tween.tween_property(world, "ship_transition_offset", Vector2.ZERO, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ship_tween.tween_method(world.set_ship_flame_length, 48.0, 12.0, 1.2)
+	var player_tween := create_tween()
+	player_tween.tween_interval(1.0)
+	player_tween.tween_property(player, "position", player_target, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	travel_transition.play_arrival()
+	await get_tree().create_timer(2.4).timeout
+	if not player.dead:
+		player.controls_locked = false
 
 func _load_language() -> void:
 	var config := ConfigFile.new()
 	if config.load("user://settings.cfg") == OK:
-		language = str(config.get_value("settings", "language", "zh"))
+		language = str(config.get_value("settings", "language", "en"))
 
 func _msg(english: String, chinese: String) -> String:
 	return chinese if language == "zh" else english
 
 func _apply_game_language() -> void:
-	$HUD/TopBar/Title.text = _msg("MEADOW PROTOTYPE", "草甸原型")
+	$HUD/TopBar/Title.text = world.get_level_title()
 	$HUD/TopBar/Subtitle.text = _msg("A quiet place to explore", "一处宁静的探索之地")
 	$HUD/TopBar/Help.text = _msg("WASD  Move    E  Interact", "WASD 移动    E 互动")
 	$HUD/PromptBox/Prompt.text = _msg("E  Interact", "E 互动")
@@ -241,10 +260,17 @@ func _on_radar_point_selected(point_id: int) -> void:
 	match point_id:
 		1:
 			_close_radar()
-			_show_toast(_msg("Greenmeadow is already in range.", "绿野就在附近。"))
+			if world.level_variant == "pond":
+				get_tree().change_scene_to_file("res://Main.tscn")
+			else:
+				_show_toast(_msg("Greenmeadow is already in range.", "绿野就在附近。"))
 		2:
 			_close_radar()
-			_show_toast(_msg("Whisper Pond signal locked. New content is growing there.", "静语池塘信号已锁定，那里会有新的内容。"))
+			player.controls_locked = true
+			var departure_tween := create_tween().set_parallel(true)
+			departure_tween.tween_property(world, "ship_transition_offset", Vector2(0, -220), 1.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			departure_tween.tween_method(world.set_ship_flame_length, 12.0, 48.0, 0.55)
+			travel_transition.play_departure("res://MainPond.tscn")
 		3:
 			_close_radar()
 			_show_toast(_msg("World Tree signal locked. Keep exploring the meadow.", "世界树信号已锁定，继续探索草甸吧。"))
