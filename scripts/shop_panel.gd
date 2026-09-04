@@ -1,24 +1,57 @@
 class_name MeadowShopPanel
 extends Control
-## Icon-driven wooden shop panel with hover details and signals.
+## Data-driven wooden shop panel with hover details and product signals.
 
-signal buy_pressed
+signal buy_pressed(item_id: String)
 signal close_pressed
 
-@onready var icon_hitbox: Control = $ItemIconHitbox
+const PRODUCT_LAYOUT := [
+	{"id": "hoe", "rect": Rect2(8, 52, 82, 108)},
+	{"id": "green_seed", "rect": Rect2(96, 52, 82, 108)},
+	{"id": "yellow_ball", "rect": Rect2(184, 52, 82, 108)},
+	{"id": "melee_weapon", "rect": Rect2(272, 52, 82, 108)},
+]
+const CARD_COLOR := Color("#493329")
+const CARD_HOVER_COLOR := Color("#634431")
+const CARD_OUTLINE := Color("#a87850")
+const GOLD := Color("#f3c969")
+
+@onready var product_hitboxes: Control = $ProductHitboxes
 @onready var hover_details: Label = $HoverDetails
 @onready var close_button: Button = $CloseButton
 
-var icon_hovered := false
+var inventory: MeadowInventory
+var hovered_item_id := ""
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	icon_hitbox.mouse_entered.connect(_on_icon_mouse_entered)
-	icon_hitbox.mouse_exited.connect(_on_icon_mouse_exited)
-	icon_hitbox.gui_input.connect(_on_icon_gui_input)
 	close_button.pressed.connect(_on_close_button_pressed)
 	hover_details.hide()
+	_create_product_hitboxes()
 	queue_redraw()
+
+func set_inventory(value: MeadowInventory) -> void:
+	inventory = value
+	queue_redraw()
+
+func is_shop_product(item_id: String) -> bool:
+	for product in PRODUCT_LAYOUT:
+		if str(product["id"]) == item_id:
+			return true
+	return false
+
+func _create_product_hitboxes() -> void:
+	for product in PRODUCT_LAYOUT:
+		var hitbox := Control.new()
+		hitbox.name = "%sHitbox" % str(product["id"]).capitalize()
+		hitbox.position = product["rect"].position
+		hitbox.size = product["rect"].size
+		hitbox.mouse_filter = Control.MOUSE_FILTER_STOP
+		hitbox.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		hitbox.mouse_entered.connect(_on_product_mouse_entered.bind(str(product["id"])))
+		hitbox.mouse_exited.connect(_on_product_mouse_exited.bind(str(product["id"])))
+		hitbox.gui_input.connect(_on_product_gui_input.bind(str(product["id"])))
+		product_hitboxes.add_child(hitbox)
 
 func _draw() -> void:
 	var panel := Rect2(0, 0, size.x, size.y)
@@ -28,35 +61,85 @@ func _draw() -> void:
 		draw_line(Vector2(10, y), Vector2(size.x - 10, y), Color(0.2, 0.1, 0.08, 0.22), 1.0)
 	draw_circle(Vector2(18, 18), 2.0, Color("#e2b873"))
 	draw_circle(Vector2(size.x - 18, size.y - 18), 2.0, Color("#e2b873"))
-	_draw_yellow_ball(Vector2(size.x * 0.5, 72.0))
-	if icon_hovered:
-		draw_arc(Vector2(size.x * 0.5, 72.0), 27.0, 0.0, TAU, 32, Color("#f8df87"), 3.0, true)
+	for product in PRODUCT_LAYOUT:
+		_draw_product(product)
 
-func _draw_yellow_ball(center: Vector2) -> void:
-	draw_circle(center + Vector2(0, 4), 25.0, Color(0.12, 0.06, 0.04, 0.5))
-	draw_circle(center, 22.0, Color("#26353b"))
-	draw_circle(center, 19.0, Color("#f3c969"))
-	draw_circle(center + Vector2(-6, -7), 5.0, Color(1.0, 0.96, 0.72, 0.85))
+func _draw_product(product: Dictionary) -> void:
+	var item_id := str(product["id"])
+	var card: Rect2 = product["rect"]
+	var hovered := item_id == hovered_item_id
+	draw_rect(card, CARD_HOVER_COLOR if hovered else CARD_COLOR, true)
+	draw_rect(card, GOLD if hovered else CARD_OUTLINE, false, 2.5 if hovered else 2.0)
+	if inventory == null:
+		return
+	var definition := inventory.get_item_definition(item_id)
+	var icon_center := card.position + Vector2(card.size.x * 0.5, 42.0)
+	_draw_item_icon(icon_center, str(definition.get("icon", "")))
+	var font := ThemeDB.fallback_font
+	var item_name := inventory.get_item_name(item_id)
+	var name_width := card.size.x - 10.0
+	draw_string(font, Vector2(card.position.x + 5.0, card.position.y + 77.0), item_name, HORIZONTAL_ALIGNMENT_CENTER, name_width, 13, Color("#f4e9c9"))
+	_draw_price(card, inventory.get_buy_price(item_id))
 
-func _on_icon_mouse_entered() -> void:
-	icon_hovered = true
-	hover_details.text = "Yellow Ball\nUse: launches a projectile through the meadow."
+func _draw_price(card: Rect2, price: int) -> void:
+	var text := "%d COINS" % price
+	var font := ThemeDB.fallback_font
+	var font_size := 11
+	var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var anchor := card.position + Vector2(card.size.x - 7.0, card.size.y - 7.0)
+	draw_set_transform(anchor, deg_to_rad(-8.0), Vector2.ONE)
+	draw_string(font, Vector2(-text_width + 1.0, 1.0), text, HORIZONTAL_ALIGNMENT_LEFT, text_width, font_size, Color(0.08, 0.04, 0.03, 0.7))
+	draw_string(font, Vector2(-text_width, 0), text, HORIZONTAL_ALIGNMENT_LEFT, text_width, font_size, GOLD)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _draw_item_icon(center: Vector2, icon: String) -> void:
+	if icon == "yellow_ball":
+		draw_circle(center + Vector2(0, 3), 25.0, Color(0.12, 0.06, 0.04, 0.5))
+		draw_circle(center, 22.0, Color("#26353b"))
+		draw_circle(center, 19.0, Color("#f3c969"))
+		draw_circle(center + Vector2(-6, -7), 5.0, Color(1.0, 0.96, 0.72, 0.85))
+	elif icon == "green_seed":
+		draw_circle(center + Vector2(0, 2), 15.0, Color(0.05, 0.1, 0.1, 0.35))
+		draw_circle(center, 13.0, Color("#59b35b"))
+		draw_circle(center + Vector2(-4, -4), 3.5, Color("#a3de6d"))
+	elif icon == "hoe":
+		draw_line(center + Vector2(-10, 14), center + Vector2(7, -11), Color("#a8754f"), 5.0)
+		draw_line(center + Vector2(2, -11), center + Vector2(15, -11), Color("#c6cbd0"), 5.0)
+		draw_line(center + Vector2(2, -11), center + Vector2(7, -2), Color("#c6cbd0"), 3.5)
+	elif icon == "plant":
+		draw_line(center + Vector2(0, 12), center + Vector2(0, -6), Color("#24523a"), 4.0)
+		draw_circle(center + Vector2(-6, -6), 7.0, Color("#4d9b55"))
+		draw_circle(center + Vector2(6, -4), 7.0, Color("#72c45f"))
+	elif icon == "melee_weapon":
+		draw_rect(Rect2(center + Vector2(-18, -6), Vector2(36, 12)), Color("#f3c969"), true)
+		draw_rect(Rect2(center + Vector2(-18, -6), Vector2(36, 12)), Color("#26353b"), false, 2.0)
+		draw_rect(Rect2(center + Vector2(-11, -3), Vector2(22, 3)), Color(1.0, 0.96, 0.72, 0.8), true)
+	else:
+		draw_rect(Rect2(center - Vector2(12, 12), Vector2(24, 24)), Color("#b68a5b"), true)
+		draw_rect(Rect2(center - Vector2(12, 12), Vector2(24, 24)), Color("#e9dfc4"), false, 2.0)
+
+func _on_product_mouse_entered(item_id: String) -> void:
+	if inventory == null or not is_shop_product(item_id):
+		return
+	hovered_item_id = item_id
+	hover_details.text = "%s\n%s" % [inventory.get_item_name(item_id), inventory.get_item_description(item_id)]
 	hover_details.show()
 	queue_redraw()
 
-func _on_icon_mouse_exited() -> void:
-	clear_hover()
+func _on_product_mouse_exited(item_id: String) -> void:
+	if hovered_item_id == item_id:
+		clear_hover()
 
-func _on_icon_gui_input(event: InputEvent) -> void:
+func _on_product_gui_input(event: InputEvent, item_id: String) -> void:
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event != null and mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
 		get_viewport().set_input_as_handled()
-		buy_pressed.emit()
+		buy_pressed.emit(item_id)
 
 func _on_close_button_pressed() -> void:
 	close_pressed.emit()
 
 func clear_hover() -> void:
-	icon_hovered = false
+	hovered_item_id = ""
 	hover_details.hide()
 	queue_redraw()

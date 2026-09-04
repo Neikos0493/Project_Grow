@@ -18,6 +18,7 @@ var fire_timer := 0.0
 var mature := false
 var dead := false
 var ground_position := Vector2.ZERO
+var knockback_velocity := Vector2.ZERO
 
 func setup(plant_cell: Vector2i, plant_target: MeadowPlayer) -> void:
 	cell = plant_cell
@@ -38,6 +39,9 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	if knockback_velocity.length_squared() > 0.01:
+		global_position += knockback_velocity * delta
+		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 220.0 * delta)
 	age += delta
 	if not mature:
 		if age >= GROW_TIME:
@@ -61,6 +65,11 @@ func _fire_volley() -> void:
 	direction = direction.normalized()
 	for angle in [-0.18, 0.0, 0.18]:
 		projectile_requested.emit(global_position, direction.rotated(float(angle)))
+
+func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
+	if dead or not mature or direction.length_squared() < 0.01:
+		return
+	knockback_velocity = direction.normalized() * maxf(0.0, strength)
 
 func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or amount <= 0:

@@ -16,6 +16,8 @@ const ITEM_DEFINITIONS := {
 		"max_stack": 1,
 		"icon": "hoe",
 		"sell_price": 0,
+		"buy_price": 5,
+		"description": "Tills nearby grass into plantable soil.",
 	},
 	"green_seed": {
 		"name": "Green Seed",
@@ -25,6 +27,8 @@ const ITEM_DEFINITIONS := {
 		"max_stack": MAX_STACK,
 		"icon": "green_seed",
 		"sell_price": 0,
+		"buy_price": 5,
+		"description": "Plant it on tilled soil to grow a meadow plant.",
 	},
 	"yellow_ball": {
 		"name": "Yellow Ball",
@@ -34,6 +38,19 @@ const ITEM_DEFINITIONS := {
 		"max_stack": 1,
 		"icon": "yellow_ball",
 		"sell_price": 0,
+		"buy_price": 50,
+		"description": "Launches a bright projectile through the meadow.",
+	},
+	"melee_weapon": {
+		"name": "Meadow Blade",
+		"consumable": false,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "melee_weapon",
+		"sell_price": 0,
+		"buy_price": 50,
+		"description": "Swings a short yellow blade that lightly knocks back monsters.",
 	},
 	"plant": {
 		"name": "Plant",
@@ -43,6 +60,8 @@ const ITEM_DEFINITIONS := {
 		"max_stack": MAX_STACK,
 		"icon": "plant",
 		"sell_price": 50,
+		"buy_price": 0,
+		"description": "A mature plant that can be sold at the shop.",
 	},
 }
 
@@ -78,6 +97,14 @@ func get_selected_item_id() -> String:
 func get_selected_count() -> int:
 	return int(slots[selected_slot]["count"])
 
+func has_item(item_id: String) -> bool:
+	if item_id.is_empty():
+		return false
+	for slot in slots:
+		if str(slot["id"]) == item_id and int(slot["count"]) > 0:
+			return true
+	return false
+
 func get_item_definition(item_id: String) -> Dictionary:
 	if ITEM_DEFINITIONS.has(item_id):
 		return ITEM_DEFINITIONS[item_id]
@@ -85,6 +112,9 @@ func get_item_definition(item_id: String) -> Dictionary:
 
 func get_item_name(item_id: String) -> String:
 	return str(get_item_definition(item_id).get("name", item_id))
+
+func get_item_description(item_id: String) -> String:
+	return str(get_item_definition(item_id).get("description", ""))
 
 func is_consumable(item_id: String) -> bool:
 	return bool(get_item_definition(item_id).get("consumable", true))
@@ -103,6 +133,9 @@ func get_item_max_stack(item_id: String) -> int:
 
 func get_sell_price(item_id: String) -> int:
 	return int(get_item_definition(item_id).get("sell_price", 0))
+
+func get_buy_price(item_id: String) -> int:
+	return int(get_item_definition(item_id).get("buy_price", 0))
 
 func can_add(item_id: String, amount: int = 1) -> bool:
 	if item_id.is_empty() or amount <= 0:

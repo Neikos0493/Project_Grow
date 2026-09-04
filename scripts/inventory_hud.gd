@@ -67,6 +67,10 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_line(center + Vector2(0, 10), center + Vector2(0, -5), Color("#24523a"), 3.0)
 		draw_circle(center + Vector2(-5, -5), 6.0, Color("#4d9b55"))
 		draw_circle(center + Vector2(5, -3), 6.0, Color("#72c45f"))
+	elif icon == "melee_weapon":
+		draw_rect(Rect2(center + Vector2(-12, -4), Vector2(24, 8)), Color("#f3c969"), true)
+		draw_rect(Rect2(center + Vector2(-12, -4), Vector2(24, 8)), Color("#26353b"), false, 2.0)
+		draw_rect(Rect2(center + Vector2(-7, -2), Vector2(14, 2)), Color(1.0, 0.96, 0.72, 0.8), true)
 	else:
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#b68a5b"), true)
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#e9dfc4"), false, 2.0)

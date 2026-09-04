@@ -1,8 +1,9 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="3_player"]
+[ext_resource type="Script" path="res://scripts/melee_weapon.gd" id="9_melee_weapon"]
 [ext_resource type="Script" path="res://scripts/shop.gd" id="4_shop"]
 [ext_resource type="Script" path="res://scripts/crosshair.gd" id="5_crosshair"]
 [ext_resource type="Script" path="res://scripts/inventory.gd" id="6_inventory"]
@@ -50,6 +51,10 @@ script = ExtResource("3_player")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
 shape = SubResource("CircleShape2D_player")
+
+[node name="MeleeWeapon" type="Node2D" parent="Player"]
+z_index = 1
+script = ExtResource("9_melee_weapon")
 
 [node name="Camera2D" type="Camera2D" parent="Player"]
 position_smoothing_enabled = true
@@ -183,36 +188,23 @@ theme_override_font_sizes/font_size = 21
 text = "WOODLAND SHOP"
 horizontal_alignment = 1
 
-[node name="ItemIconHitbox" type="Control" parent="HUD/ShopPanel"]
-offset_left = 148.0
-offset_top = 40.0
-offset_right = 212.0
-offset_bottom = 104.0
-mouse_filter = 0
-mouse_default_cursor_shape = 2
+[node name="ProductHitboxes" type="Control" parent="HUD/ShopPanel"]
+offset_right = 360.0
+offset_bottom = 276.0
+mouse_filter = 2
 
 [node name="HoverDetails" type="Label" parent="HUD/ShopPanel"]
 offset_left = 24.0
-offset_top = 110.0
+offset_top = 170.0
 offset_right = 336.0
-offset_bottom = 166.0
+offset_bottom = 238.0
 mouse_filter = 2
 visible = false
+autowrap_mode = 2
 theme_override_colors/font_color = Color(1, 0.96, 0.78, 1)
 theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 vertical_alignment = 1
-
-[node name="Price" type="Label" parent="HUD/ShopPanel"]
-offset_left = 210.0
-offset_top = 178.0
-offset_right = 336.0
-offset_bottom = 202.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
-theme_override_font_sizes/font_size = 16
-text = "50 COINS"
-horizontal_alignment = 2
 
 [node name="CloseButton" type="Button" parent="HUD/ShopPanel"]
 offset_left = 320.0

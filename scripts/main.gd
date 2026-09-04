@@ -5,8 +5,8 @@ extends Node2D
 const HOE := "hoe"
 const GREEN_SEED := "green_seed"
 const YELLOW_BALL := "yellow_ball"
+const MELEE_WEAPON := "melee_weapon"
 const PLANT := "plant"
-const YELLOW_BALL_PRICE := 50
 const STARTING_COINS := 9999
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
@@ -15,6 +15,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 
 @onready var world: MeadowWorld = $World
 @onready var player: MeadowPlayer = $Player
+@onready var melee_weapon: MeadowMeleeWeapon = $Player/MeleeWeapon
 @onready var camera: Camera2D = $Player/Camera2D
 @onready var shop: MeadowShop = $Shop
 @onready var crosshair: MeadowCrosshair = $CursorLayer/Crosshair
@@ -58,12 +59,10 @@ func _ready() -> void:
 	player.died.connect(_on_player_died)
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
+	shop_panel.set_inventory(inventory)
 	inventory_hud.set_inventory(inventory)
 	inventory.inventory_changed.connect(_refresh_inventory)
 	inventory.selection_changed.connect(_refresh_inventory)
-	if inventory.get_selected_item_id().is_empty():
-		inventory.try_add(HOE)
-		inventory.try_add(GREEN_SEED, 3)
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
 	prompt_box.hide()
@@ -141,7 +140,7 @@ func _update_depth_order() -> void:
 	shop.z_index = 11 if same_column and player.global_position.y <= shop_edge_y else 9
 
 func _on_interaction_requested() -> void:
-	if player.dead:
+	if player.dead or melee_weapon.swinging:
 		return
 	if shop_open:
 		_close_shop()
@@ -167,6 +166,7 @@ func _on_interaction_requested() -> void:
 func _open_shop() -> void:
 	if player.dead:
 		return
+	melee_weapon.cancel_swing()
 	shop_open = true
 	player.controls_locked = true
 	shop_panel.clear_hover()
@@ -181,19 +181,24 @@ func _close_shop() -> void:
 	shop_panel.hide()
 	_last_prompt = ""
 
-func _on_buy_pressed() -> void:
-	if player.dead or not shop_open:
+func _on_buy_pressed(item_id: String) -> void:
+	if player.dead or not shop_open or not shop_panel.is_shop_product(item_id):
 		return
-	if coins < YELLOW_BALL_PRICE:
+	var price := inventory.get_buy_price(item_id)
+	if price <= 0:
+		return
+	if coins < price:
 		_show_toast("Not enough coins.")
 		return
-	if not inventory.can_add(YELLOW_BALL):
+	if not inventory.can_add(item_id):
 		_show_toast("Inventory is full.")
 		return
-	if inventory.try_add(YELLOW_BALL):
-		coins -= YELLOW_BALL_PRICE
-		_refresh_coins()
-		_show_toast("Bought a yellow ball for 50 coins.")
+	if not inventory.try_add(item_id):
+		_show_toast("Inventory is full.")
+		return
+	coins -= price
+	_refresh_coins()
+	_show_toast("Bought %s for %d coins." % [inventory.get_item_name(item_id), price])
 
 func _sell_inventory_slot(slot_index: int) -> void:
 	if slot_index < 0:
@@ -216,7 +221,7 @@ func _drop_selected_item() -> void:
 		_show_toast("This slot is empty.")
 		return
 	if not inventory.is_droppable(item_id):
-		_show_toast("The hoe cannot be dropped.")
+		_show_toast("%s cannot be dropped." % inventory.get_item_name(item_id))
 		return
 	if not inventory.remove_selected():
 		return
@@ -271,6 +276,8 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			_show_toast("Seed planted. It will mature in 3 seconds.")
 		YELLOW_BALL:
 				_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
+		MELEE_WEAPON:
+			melee_weapon.try_swing(direction)
 
 func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, damage: int, source: Node, tint: Color) -> void:
 	var projectile := MeadowProjectile.new()
@@ -297,6 +304,7 @@ func _on_health_changed(current: int, maximum: int) -> void:
 	health_label.text = "HP  %d/%d" % [current, maximum]
 
 func _on_player_died() -> void:
+	melee_weapon.cancel_swing()
 	_respawn_triggered_for_death = false
 	_reset_respawn_hold()
 	_close_shop()
@@ -324,6 +332,7 @@ func _reset_respawn_hold() -> void:
 	respawn_progress.value = 0.0
 
 func _respawn_player() -> void:
+	melee_weapon.cancel_swing()
 	var spawn_global_position := world.to_global(world.cell_to_world(world.PLAYER_START_CELL))
 	if not player.respawn_at(spawn_global_position):
 		_respawn_triggered_for_death = false
