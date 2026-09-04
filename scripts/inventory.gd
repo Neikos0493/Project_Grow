@@ -28,10 +28,10 @@ const ITEM_DEFINITIONS := {
 	},
 	"yellow_ball": {
 		"name": "Yellow Ball",
-		"consumable": true,
+		"consumable": false,
 		"droppable": true,
 		"show_count": false,
-		"max_stack": MAX_STACK,
+		"max_stack": 1,
 		"icon": "yellow_ball",
 		"sell_price": 0,
 	},
@@ -96,7 +96,10 @@ func shows_count(item_id: String) -> bool:
 	return bool(get_item_definition(item_id).get("show_count", true))
 
 func get_item_max_stack(item_id: String) -> int:
-	return maxi(1, int(get_item_definition(item_id).get("max_stack", MAX_STACK)))
+	var max_stack := maxi(1, int(get_item_definition(item_id).get("max_stack", MAX_STACK)))
+	if is_consumable(item_id):
+		return mini(max_stack, MAX_STACK)
+	return max_stack
 
 func get_sell_price(item_id: String) -> int:
 	return int(get_item_definition(item_id).get("sell_price", 0))
