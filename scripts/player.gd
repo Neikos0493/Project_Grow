@@ -8,6 +8,8 @@ signal health_changed(current: int, maximum: int)
 signal died
 
 const MOVE_SPEED := 150.0
+const MOVE_ACCELERATION := 720.0
+const MOVE_DECELERATION := 980.0
 const MAX_HEALTH := 5
 
 var controls_locked := false
@@ -20,13 +22,15 @@ func _ready() -> void:
 	queue_redraw()
 	health_changed.emit(health, MAX_HEALTH)
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if controls_locked or dead:
-		velocity = Vector2.ZERO
+		velocity = velocity.move_toward(Vector2.ZERO, MOVE_DECELERATION * delta)
 		_update_mouse_facing()
 		return
 	var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	velocity = input_direction * MOVE_SPEED
+	var target_velocity := input_direction * MOVE_SPEED
+	var response := MOVE_ACCELERATION if input_direction.length_squared() > 0.0 else MOVE_DECELERATION
+	velocity = velocity.move_toward(target_velocity, response * delta)
 	move_and_slide()
 	_update_mouse_facing()
 
