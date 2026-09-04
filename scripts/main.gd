@@ -250,9 +250,7 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				return
 			_show_toast("Seed planted. It will mature in 3 seconds.")
 		YELLOW_BALL:
-			if not inventory.consume_selected():
-				return
-			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
+				_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
 
 func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, damage: int, source: Node, tint: Color) -> void:
 	var projectile := MeadowProjectile.new()
