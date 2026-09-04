@@ -11,6 +11,7 @@ const STARTING_COINS := 9999
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
 const PLANT_MASK := 4
+const RESPAWN_HOLD_SECONDS := 2.0
 
 @onready var world: MeadowWorld = $World
 @onready var player: MeadowPlayer = $Player
@@ -28,12 +29,16 @@ const PLANT_MASK := 4
 @onready var prompt_label: Label = $HUD/PromptBox/Prompt
 @onready var toast_box: ColorRect = $HUD/ToastBox
 @onready var toast_label: Label = $HUD/ToastBox/Toast
+@onready var death_overlay: ColorRect = $HUD/DeathOverlay
+@onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
 
 var coins := STARTING_COINS
 var shop_open := false
 var plant_entities: Dictionary = {}
 var _last_prompt := ""
 var _toast_tween: Tween
+var _respawn_hold_elapsed := 0.0
+var _respawn_triggered_for_death := false
 
 func _ready() -> void:
 	player.position = world.cell_to_world(world.PLAYER_START_CELL)
@@ -62,17 +67,24 @@ func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
 	prompt_box.hide()
+	death_overlay.hide()
+	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
+	respawn_progress.value = 0.0
 	_on_health_changed(player.health, player.MAX_HEALTH)
 	_refresh_inventory()
 	_refresh_coins()
 	_show_toast("Explore the meadow. Find the mailbox.")
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	crosshair.queue_redraw()
 	_update_depth_order()
 	if not world.drops.is_empty():
 		world.queue_redraw()
-	if not shop_open and not player.dead:
+	if player.dead:
+		prompt_box.hide()
+		_update_respawn_hold(delta)
+		return
+	if not shop_open:
 		_try_pickup()
 	if shop_open:
 		prompt_box.hide()
@@ -88,6 +100,8 @@ func _process(_delta: float) -> void:
 		prompt_box.show()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if player.dead:
+		return
 	if shop_open:
 		if _is_escape(event):
 			_close_shop()
@@ -127,6 +141,8 @@ func _update_depth_order() -> void:
 	shop.z_index = 11 if same_column and player.global_position.y <= shop_edge_y else 9
 
 func _on_interaction_requested() -> void:
+	if player.dead:
+		return
 	if shop_open:
 		_close_shop()
 		return
@@ -149,6 +165,8 @@ func _on_interaction_requested() -> void:
 	_show_toast("Nothing to interact with here." if message.is_empty() else message)
 
 func _open_shop() -> void:
+	if player.dead:
+		return
 	shop_open = true
 	player.controls_locked = true
 	shop_panel.clear_hover()
@@ -158,12 +176,14 @@ func _open_shop() -> void:
 
 func _close_shop() -> void:
 	shop_open = false
-	player.controls_locked = false
+	player.controls_locked = player.dead
 	shop_panel.clear_hover()
 	shop_panel.hide()
 	_last_prompt = ""
 
 func _on_buy_pressed() -> void:
+	if player.dead or not shop_open:
+		return
 	if coins < YELLOW_BALL_PRICE:
 		_show_toast("Not enough coins.")
 		return
@@ -277,7 +297,46 @@ func _on_health_changed(current: int, maximum: int) -> void:
 	health_label.text = "HP  %d/%d" % [current, maximum]
 
 func _on_player_died() -> void:
-	_show_toast("You ran out of health.")
+	_respawn_triggered_for_death = false
+	_reset_respawn_hold()
+	_close_shop()
+	prompt_box.hide()
+	_last_prompt = ""
+	if is_instance_valid(_toast_tween):
+		_toast_tween.kill()
+	toast_box.hide()
+	death_overlay.show()
+
+func _update_respawn_hold(delta: float) -> void:
+	if _respawn_triggered_for_death:
+		return
+	if not Input.is_action_pressed("respawn"):
+		_reset_respawn_hold()
+		return
+	_respawn_hold_elapsed = minf(_respawn_hold_elapsed + delta, RESPAWN_HOLD_SECONDS)
+	respawn_progress.value = _respawn_hold_elapsed
+	if _respawn_hold_elapsed >= RESPAWN_HOLD_SECONDS:
+		_respawn_triggered_for_death = true
+		_respawn_player()
+
+func _reset_respawn_hold() -> void:
+	_respawn_hold_elapsed = 0.0
+	respawn_progress.value = 0.0
+
+func _respawn_player() -> void:
+	var spawn_global_position := world.to_global(world.cell_to_world(world.PLAYER_START_CELL))
+	if not player.respawn_at(spawn_global_position):
+		_respawn_triggered_for_death = false
+		return
+	_reset_respawn_hold()
+	death_overlay.hide()
+	shop_open = false
+	shop_panel.clear_hover()
+	shop_panel.hide()
+	prompt_box.hide()
+	_last_prompt = ""
+	camera.reset_smoothing()
+	_show_toast("You returned to the meadow.")
 
 func _refresh_coins() -> void:
 	coin_label.text = "COINS  %d" % coins

@@ -40,6 +40,8 @@ func _update_mouse_facing() -> void:
 		queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if dead:
+		return
 	var key_event := event as InputEventKey
 	if event.is_action_pressed("interact") and (key_event == null or not key_event.echo):
 		interaction_requested.emit()
@@ -60,6 +62,18 @@ func take_damage(amount: int = 1) -> bool:
 		dead = true
 		controls_locked = true
 		died.emit()
+	return true
+
+func respawn_at(spawn_global_position: Vector2) -> bool:
+	if not dead:
+		return false
+	global_position = spawn_global_position
+	velocity = Vector2.ZERO
+	health = MAX_HEALTH
+	dead = false
+	controls_locked = false
+	health_changed.emit(health, MAX_HEALTH)
+	queue_redraw()
 	return true
 
 func _draw() -> void:

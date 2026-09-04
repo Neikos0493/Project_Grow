@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
@@ -11,6 +11,25 @@
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 9.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_respawn_background"]
+bg_color = Color(0.027, 0.059, 0.071, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.25, 0.27, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_respawn_fill"]
+bg_color = Color(0.96, 0.82, 0.47, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -25,7 +44,7 @@ script = ExtResource("4_shop")
 [node name="Player" type="CharacterBody2D" parent="."]
 z_index = 10
 collision_layer = 2
-collision_mask = 1
+collision_mask = 9
 motion_mode = 1
 script = ExtResource("3_player")
 
@@ -219,6 +238,71 @@ theme_override_font_sizes/font_size = 14
 text = "Explore the meadow."
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="DeathOverlay" type="ColorRect" parent="HUD"]
+visible = false
+z_index = 100
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.016, 0.035, 0.043, 0.76)
+
+[node name="DeathCard" type="ColorRect" parent="HUD/DeathOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -92.0
+offset_right = 220.0
+offset_bottom = 92.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.055, 0.11, 0.13, 0.97)
+
+[node name="DeathTitle" type="Label" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 22.0
+offset_right = 416.0
+offset_bottom = 54.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 24
+text = "YOU FAINTED"
+horizontal_alignment = 1
+
+[node name="RespawnInstruction" type="Label" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 66.0
+offset_right = 416.0
+offset_bottom = 91.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.81, 1)
+theme_override_font_sizes/font_size = 15
+text = "Hold SPACE for 2 seconds to return"
+horizontal_alignment = 1
+
+[node name="RespawnProgress" type="ProgressBar" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 48.0
+offset_top = 112.0
+offset_right = 392.0
+offset_bottom = 138.0
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_respawn_background")
+theme_override_styles/fill = SubResource("StyleBoxFlat_respawn_fill")
+max_value = 2.0
+step = 0.001
+show_percentage = false
 
 [node name="CursorLayer" type="CanvasLayer" parent="."]
 layer = 20

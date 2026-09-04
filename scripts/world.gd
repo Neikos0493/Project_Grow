@@ -16,6 +16,8 @@ const SEED_RANGE_CELLS := 1
 const FARM_TILLED := 0
 const FARM_SEEDED := 1
 const FARM_MATURE := 2
+const WORLD_COLLISION_LAYER := 1
+const WATER_COLLISION_LAYER := 8
 
 const GRASS := 0
 const DIRT := 1
@@ -205,14 +207,22 @@ func _prop_cells(prop: Dictionary) -> Array:
 func _create_collisions() -> void:
 	var map_collisions := StaticBody2D.new()
 	map_collisions.name = "MapCollisions"
-	map_collisions.collision_layer = 1
-	map_collisions.collision_mask = 1
+	map_collisions.collision_layer = WORLD_COLLISION_LAYER
+	map_collisions.collision_mask = WORLD_COLLISION_LAYER
 	add_child(map_collisions)
+
+	var water_collisions := StaticBody2D.new()
+	water_collisions.name = "WaterCollisions"
+	water_collisions.collision_layer = WATER_COLLISION_LAYER
+	water_collisions.collision_mask = WATER_COLLISION_LAYER
+	add_child(water_collisions)
 
 	for y in range(MAP_SIZE.y):
 		for x in range(MAP_SIZE.x):
 			var cell := Vector2i(x, y)
-			if cells[y][x] == WATER or cells[y][x] == ROCK:
+			if cells[y][x] == WATER:
+				_add_rectangle_collision(water_collisions, cell_to_world(cell), Vector2(TILE_SIZE, TILE_SIZE))
+			elif cells[y][x] == ROCK:
 				_add_rectangle_collision(map_collisions, cell_to_world(cell), Vector2(TILE_SIZE, TILE_SIZE))
 
 	for prop in props:
@@ -375,17 +385,21 @@ func _draw_cliff_details() -> void:
 func _draw_drop(drop: Dictionary) -> void:
 	var available := Time.get_ticks_msec() >= int(drop["available_at_msec"])
 	var item_id := str(drop.get("item_id", ""))
-	var base_color := Color("#4d9b55") if item_id == "plant" else Color("#f3c969")
-	var color := base_color if available else Color(base_color, 0.35)
 	var position: Vector2 = drop["position"]
 	draw_circle(position + Vector2(0, 3), 8.0, Color(0.05, 0.1, 0.1, 0.3))
+	if item_id == "plant":
+		var alpha := 1.0 if available else 0.35
+		draw_line(position + Vector2(0, 6), position + Vector2(0, -6), Color(Color("#24523a"), alpha), 2.0)
+		draw_circle(position + Vector2(-4, -5), 4.0, Color(Color("#59b35b"), alpha))
+		draw_circle(position + Vector2(4, -4), 4.0, Color(Color("#72c45f"), alpha))
+		if not available:
+			draw_arc(position, 10.0, 0.0, TAU, 24, Color(0.3, 0.61, 0.33, 0.55), 1.0)
+		return
+	var base_color := Color("#f3c969")
+	var color := base_color if available else Color(base_color, 0.35)
 	draw_circle(position, 6.0, color)
 	draw_circle(position + Vector2(-2, -2), 2.0, Color(1, 0.96, 0.7, 0.8) if available else Color(1, 0.96, 0.7, 0.3))
-	if item_id == "plant" and available:
-		draw_line(position + Vector2(0, 5), position + Vector2(0, -5), Color("#24523a"), 2.0)
-		draw_circle(position + Vector2(-3, -5), 3.0, Color("#59b35b"))
-		draw_circle(position + Vector2(3, -4), 3.0, Color("#72c45f"))
-	elif not available:
+	if not available:
 		draw_arc(position, 10.0, 0.0, TAU, 24, Color(base_color, 0.55), 1.0)
 
 func _tile_color(tile_type: int, cell: Vector2i) -> Color:

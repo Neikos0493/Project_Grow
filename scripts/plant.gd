@@ -70,7 +70,9 @@ func take_damage(amount: int = 1) -> bool:
 	if health > 0:
 		return true
 	dead = true
+	collision_layer = 0
 	died.emit(cell, global_position)
+	queue_free()
 	return true
 
 func _draw() -> void:
