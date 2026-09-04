@@ -64,6 +64,13 @@ var props: Array[Dictionary] = [
 		"used": false,
 		"no_collision": true,
 	},
+	{
+		"cell": Vector2i(20, 1),
+		"kind": "spaceship",
+		"label": "Open navigation radar",
+		"used": false,
+		"no_collision": true,
+	},
 ]
 
 func _ready() -> void:
@@ -450,6 +457,29 @@ func _draw_prop(prop: Dictionary) -> void:
 				center + Vector2(0, -14), center + Vector2(18, -9), center + Vector2(0, -4),
 			]), Color("#d5b15f"))
 			draw_line(center + Vector2(-20, 8), center + Vector2(20, 8), Color("#5a4938"), 2.0)
+		"spaceship":
+			# A simple beacon ship marks the in-world level navigation point.
+			_draw_flat_ellipse(center + Vector2(0, 9), Vector2(20, 5), Color(0.05, 0.1, 0.1, 0.3))
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-24, 2), center + Vector2(-12, -10), center + Vector2(13, -10),
+				center + Vector2(24, 2), center + Vector2(12, 10), center + Vector2(-13, 10),
+			]), Color("#d9e2cf"))
+			draw_polyline(PackedVector2Array([
+				center + Vector2(-24, 2), center + Vector2(-12, -10), center + Vector2(13, -10),
+				center + Vector2(24, 2), center + Vector2(12, 10), center + Vector2(-13, 10),
+				center + Vector2(-24, 2),
+			]), outline, 2.0, true)
+			draw_circle(center + Vector2(0, -1), 7.0, Color("#3e86a5"))
+			draw_circle(center + Vector2(0, -2), 3.0, Color("#e7c66d"))
+			draw_line(center + Vector2(-15, 7), center + Vector2(-20, 14), Color("#d66b58"), 3.0)
+			draw_line(center + Vector2(15, 7), center + Vector2(20, 14), Color("#d66b58"), 3.0)
+
+func _draw_flat_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
+	var points := PackedVector2Array()
+	for index in range(25):
+		var angle := TAU * float(index) / 24.0
+		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
+	draw_colored_polygon(points, color)
 
 func _find_target(origin: Vector2, facing: Vector2) -> Dictionary:
 	if facing.length_squared() < 0.01:

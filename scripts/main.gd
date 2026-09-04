@@ -26,6 +26,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
+@onready var radar_panel: Control = $HUD/RadarPanel
 @onready var prompt_box: ColorRect = $HUD/PromptBox
 @onready var prompt_label: Label = $HUD/PromptBox/Prompt
 @onready var toast_box: ColorRect = $HUD/ToastBox
@@ -35,6 +36,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 
 var coins := STARTING_COINS
 var shop_open := false
+var radar_open := false
 var plant_entities: Dictionary = {}
 var _last_prompt := ""
 var _toast_tween: Tween
@@ -60,11 +62,14 @@ func _ready() -> void:
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
 	shop_panel.set_inventory(inventory)
+	radar_panel.point_selected.connect(_on_radar_point_selected)
+	radar_panel.close_pressed.connect(_close_radar)
 	inventory_hud.set_inventory(inventory)
 	inventory.inventory_changed.connect(_refresh_inventory)
 	inventory.selection_changed.connect(_refresh_inventory)
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
+	radar_panel.hide()
 	prompt_box.hide()
 	death_overlay.hide()
 	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
@@ -85,6 +90,9 @@ func _process(delta: float) -> void:
 		return
 	if not shop_open:
 		_try_pickup()
+	if radar_open:
+		prompt_box.hide()
+		return
 	if shop_open:
 		prompt_box.hide()
 		return
@@ -100,6 +108,11 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if player.dead:
+		return
+	if radar_open:
+		if _is_escape(event):
+			_close_radar()
+			get_viewport().set_input_as_handled()
 		return
 	if shop_open:
 		if _is_escape(event):
@@ -149,6 +162,9 @@ func _on_interaction_requested() -> void:
 	if not target.is_empty() and target["kind"] == "shop":
 		_open_shop()
 		return
+	if not target.is_empty() and target["kind"] == "spaceship":
+		_open_radar()
+		return
 	if not target.is_empty() and target["kind"] == "crate" and not bool(target["used"]):
 		if not inventory.can_add(GREEN_SEED, 3):
 			_show_toast("Inventory is full.")
@@ -162,6 +178,32 @@ func _on_interaction_requested() -> void:
 			_show_toast("Inventory is full.")
 			return
 	_show_toast("Nothing to interact with here." if message.is_empty() else message)
+
+func _open_radar() -> void:
+	radar_open = true
+	player.controls_locked = true
+	prompt_box.hide()
+	radar_panel.show()
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+func _close_radar() -> void:
+	radar_open = false
+	player.controls_locked = false
+	radar_panel.hide()
+	_last_prompt = ""
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+
+func _on_radar_point_selected(point_id: int) -> void:
+	match point_id:
+		1:
+			_close_radar()
+			_show_toast("Greenmeadow is already in range.")
+		2:
+			_close_radar()
+			_show_toast("Whisper Pond signal locked. New content is growing there.")
+		3:
+			_close_radar()
+			_show_toast("World Tree signal locked. Keep exploring the meadow.")
 
 func _open_shop() -> void:
 	if player.dead:
