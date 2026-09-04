@@ -23,6 +23,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var projectiles: Node2D = $Projectiles
 @onready var plants: Node2D = $Plants
 @onready var inventory_hud: MeadowInventoryHud = $HUD/InventoryBar
+@onready var inventory_sell_tooltip: Label = $HUD/InventorySellTooltip
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
@@ -39,6 +40,8 @@ var shop_open := false
 var radar_open := false
 var plant_entities: Dictionary = {}
 var _last_prompt := ""
+var _inventory_sell_tooltip_slot := -1
+var _inventory_sell_tooltip_item_id := ""
 var _toast_tween: Tween
 var _respawn_hold_elapsed := 0.0
 var _respawn_triggered_for_death := false
@@ -86,16 +89,20 @@ func _process(delta: float) -> void:
 		world.queue_redraw()
 	if player.dead:
 		prompt_box.hide()
+		_clear_inventory_sell_tooltip()
 		_update_respawn_hold(delta)
 		return
 	if not shop_open:
 		_try_pickup()
 	if radar_open:
 		prompt_box.hide()
+		_clear_inventory_sell_tooltip()
 		return
 	if shop_open:
 		prompt_box.hide()
+		_update_inventory_sell_tooltip()
 		return
+	_clear_inventory_sell_tooltip()
 	var next_prompt := world.get_interaction_prompt(player.global_position, player.facing)
 	if next_prompt == _last_prompt:
 		return
@@ -211,6 +218,7 @@ func _open_shop() -> void:
 	melee_weapon.cancel_swing()
 	shop_open = true
 	player.controls_locked = true
+	_clear_inventory_sell_tooltip()
 	shop_panel.clear_hover()
 	shop_panel.show()
 	prompt_box.hide()
@@ -219,6 +227,7 @@ func _open_shop() -> void:
 func _close_shop() -> void:
 	shop_open = false
 	player.controls_locked = player.dead
+	_clear_inventory_sell_tooltip()
 	shop_panel.clear_hover()
 	shop_panel.hide()
 	_last_prompt = ""
@@ -247,15 +256,55 @@ func _sell_inventory_slot(slot_index: int) -> void:
 		return
 	var slot := inventory.get_slot(slot_index)
 	var item_id := str(slot.get("id", ""))
-	if item_id != PLANT:
-		_show_toast("Only plants can be sold here.")
+	if item_id.is_empty():
 		return
 	var price := inventory.get_sell_price(item_id)
-	if price <= 0 or not inventory.remove_from_slot(slot_index):
+	if price <= 0:
+		_show_toast("%s cannot be sold here." % inventory.get_item_name(item_id))
+		return
+	if not inventory.remove_from_slot(slot_index):
 		return
 	coins += price
 	_refresh_coins()
-	_show_toast("Sold 1 plant for %d coins." % price)
+	_show_toast("Sold 1 %s for %d coins." % [inventory.get_item_name(item_id), price])
+	_inventory_sell_tooltip_slot = -1
+	_update_inventory_sell_tooltip()
+
+func _update_inventory_sell_tooltip() -> void:
+	if not shop_open or player.dead:
+		_clear_inventory_sell_tooltip()
+		return
+	var mouse_position := get_viewport().get_mouse_position()
+	var slot_index := inventory_hud.get_slot_at_viewport_position(mouse_position)
+	if slot_index < 0:
+		_clear_inventory_sell_tooltip()
+		return
+	var slot := inventory.get_slot(slot_index)
+	var item_id := str(slot.get("id", ""))
+	if item_id.is_empty() or int(slot.get("count", 0)) <= 0:
+		_clear_inventory_sell_tooltip()
+		return
+	var price := inventory.get_sell_price(item_id)
+	if price <= 0:
+		_clear_inventory_sell_tooltip()
+		return
+	if _inventory_sell_tooltip_slot != slot_index or _inventory_sell_tooltip_item_id != item_id:
+		inventory_sell_tooltip.text = "%s\nSELL PRICE: %d COINS" % [inventory.get_item_name(item_id), price]
+		_inventory_sell_tooltip_slot = slot_index
+		_inventory_sell_tooltip_item_id = item_id
+	var tooltip_size := inventory_sell_tooltip.size
+	var viewport_size := get_viewport_rect().size
+	var position := mouse_position + Vector2(14.0, -tooltip_size.y - 10.0)
+	position.x = clampf(position.x, 8.0, viewport_size.x - tooltip_size.x - 8.0)
+	position.y = clampf(position.y, 8.0, viewport_size.y - tooltip_size.y - 8.0)
+	inventory_sell_tooltip.position = position
+	inventory_sell_tooltip.show()
+
+func _clear_inventory_sell_tooltip() -> void:
+	_inventory_sell_tooltip_slot = -1
+	_inventory_sell_tooltip_item_id = ""
+	inventory_sell_tooltip.text = ""
+	inventory_sell_tooltip.hide()
 
 func _drop_selected_item() -> void:
 	var item_id := inventory.get_selected_item_id()
@@ -382,6 +431,7 @@ func _respawn_player() -> void:
 	_reset_respawn_hold()
 	death_overlay.hide()
 	shop_open = false
+	_clear_inventory_sell_tooltip()
 	shop_panel.clear_hover()
 	shop_panel.hide()
 	prompt_box.hide()
