@@ -356,66 +356,41 @@ theme_override_font_sizes/font_size = 21
 text = "NAVIGATION RADAR"
 horizontal_alignment = 1
 
-[node name="SubTitle" type="Label" parent="HUD/RadarPanel"]
-offset_left = 24.0
-offset_top = 46.0
-offset_right = 396.0
-offset_bottom = 66.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.64, 0.78, 0.7, 1)
-theme_override_font_sizes/font_size = 11
-text = "Select a signal to travel"
-horizontal_alignment = 1
-
 [node name="MeadowPoint" type="Button" parent="HUD/RadarPanel"]
-offset_left = 134.0
-offset_top = 126.0
-offset_right = 176.0
-offset_bottom = 168.0
+offset_left = 162.0
+offset_top = 163.0
+offset_right = 182.0
+offset_bottom = 183.0
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleBox_radar_point")
 theme_override_styles/hover = SubResource("StyleBox_radar_hover")
 theme_override_styles/focus = SubResource("StyleBox_radar_hover")
-text = "01"
 
 [node name="PondPoint" type="Button" parent="HUD/RadarPanel"]
-offset_left = 261.0
-offset_top = 241.0
-offset_right = 303.0
-offset_bottom = 283.0
+offset_left = 280.0
+offset_top = 245.0
+offset_right = 300.0
+offset_bottom = 265.0
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleBox_radar_point")
 theme_override_styles/hover = SubResource("StyleBox_radar_hover")
 theme_override_styles/focus = SubResource("StyleBox_radar_hover")
-text = "02"
 
 [node name="TreePoint" type="Button" parent="HUD/RadarPanel"]
-offset_left = 324.0
-offset_top = 120.0
-offset_right = 366.0
-offset_bottom = 162.0
+offset_left = 308.0
+offset_top = 160.0
+offset_right = 328.0
+offset_bottom = 180.0
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
 theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleBox_radar_point")
 theme_override_styles/hover = SubResource("StyleBox_radar_hover")
 theme_override_styles/focus = SubResource("StyleBox_radar_hover")
-text = "03"
-
-[node name="PointLabels" type="Label" parent="HUD/RadarPanel"]
-offset_left = 44.0
-offset_top = 285.0
-offset_right = 376.0
-offset_bottom = 325.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.88, 0.93, 0.81, 1)
-theme_override_font_sizes/font_size = 11
-text = "01 GREENMEADOW     02 WHISPER POND     03 WORLD TREE"
-horizontal_alignment = 1
 
 [node name="CloseButton" type="Button" parent="HUD/RadarPanel"]
 offset_left = 366.0
