@@ -128,7 +128,7 @@ func _process(delta: float) -> void:
 		prompt_box.hide()
 		_update_inventory_sell_tooltip()
 		return
-	_clear_inventory_sell_tooltip()
+	_update_inventory_sell_tooltip()
 	var next_prompt := world.get_interaction_prompt(player.global_position, player.facing)
 	if next_prompt == _last_prompt:
 		return
@@ -138,6 +138,16 @@ func _process(delta: float) -> void:
 	else:
 		prompt_label.text = "E  " + next_prompt
 		prompt_box.show()
+
+func _input(event: InputEvent) -> void:
+	if player.dead or radar_open:
+		return
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event != null and mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		var slot_index := inventory_hud.get_slot_at_viewport_position(mouse_event.position)
+		if slot_index >= 0:
+			inventory.select_slot(slot_index)
+			get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if player.dead:
@@ -215,6 +225,7 @@ func _on_interaction_requested() -> void:
 func _open_radar() -> void:
 	radar_open = true
 	player.controls_locked = true
+	_clear_inventory_sell_tooltip()
 	prompt_box.hide()
 	radar_panel.show()
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -297,7 +308,7 @@ func _sell_inventory_slot(slot_index: int) -> void:
 	_update_inventory_sell_tooltip()
 
 func _update_inventory_sell_tooltip() -> void:
-	if not shop_open or player.dead:
+	if player.dead or radar_open:
 		_clear_inventory_sell_tooltip()
 		return
 	var mouse_position := get_viewport().get_mouse_position()
