@@ -107,7 +107,6 @@ func _apply_game_language() -> void:
 	$HUD/DeathOverlay/DeathCard/DeathTitle.text = _msg("YOU FAINTED", "你昏倒了")
 	$HUD/DeathOverlay/DeathCard/RespawnInstruction.text = _msg("Hold SPACE for 2 seconds to return", "长按空格键 2 秒返回")
 	$HUD/ShopPanel/DimLabel.text = _msg("WOODLAND SHOP", "林地商店")
-	$HUD/ShopPanel/Price.text = _msg("50 COINS", "50 金币")
 
 func _process(delta: float) -> void:
 	crosshair.queue_redraw()
@@ -339,7 +338,6 @@ func _drop_selected_item() -> void:
 		_show_toast(_msg("This slot is empty.", "当前栏位为空。"))
 		return
 	if not inventory.is_droppable(item_id):
-	if not inventory.is_droppable(item_id):
 		_show_toast(_msg("%s cannot be dropped." % inventory.get_item_name(item_id), "%s不能丢弃。" % inventory.get_item_name(item_id)))
 		return
 	if not inventory.remove_selected():
@@ -393,7 +391,6 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				plant.queue_free()
 				return
 			_show_toast(_msg("Seed planted. It will mature in 3 seconds.", "种子已种下，3 秒后成熟。"))
-		YELLOW_BALL:
 		YELLOW_BALL:
 			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
 		MELEE_WEAPON:
