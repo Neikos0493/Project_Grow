@@ -67,7 +67,7 @@ const ITEM_DEFINITIONS := {
 
 var slots: Array[Dictionary] = []
 var selected_slot := 0
-var language := "en"
+var language := "zh"
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"

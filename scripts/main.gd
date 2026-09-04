@@ -36,7 +36,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
 
 var coins := STARTING_COINS
-var language := "en"
+var language := "zh"
 var shop_open := false
 var radar_open := false
 var plant_entities: Dictionary = {}
@@ -93,7 +93,7 @@ func _ready() -> void:
 func _load_language() -> void:
 	var config := ConfigFile.new()
 	if config.load("user://settings.cfg") == OK:
-		language = str(config.get_value("settings", "language", "en"))
+		language = str(config.get_value("settings", "language", "zh"))
 
 func _msg(english: String, chinese: String) -> String:
 	return chinese if language == "zh" else english

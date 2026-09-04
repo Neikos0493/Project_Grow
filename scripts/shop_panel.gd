@@ -22,7 +22,7 @@ const GOLD := Color("#f3c969")
 
 var inventory: MeadowInventory
 var hovered_item_id := ""
-var language := "en"
+var language := "zh"
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"

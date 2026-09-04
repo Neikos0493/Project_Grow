@@ -11,7 +11,7 @@ extends Control
 @onready var fullscreen_toggle: CheckButton = $SettingsPanel/Margin/VBox/FullscreenRow/FullscreenToggle
 @onready var status_label: Label = $Content/Status
 
-var language := "en"
+var language := "zh"
 
 func _ready() -> void:
 	start_button.grab_focus()
@@ -64,7 +64,7 @@ func _on_language_selected(index: int) -> void:
 func _load_language() -> void:
 	var config := ConfigFile.new()
 	if config.load("user://settings.cfg") == OK:
-		language = str(config.get_value("settings", "language", "en"))
+		language = str(config.get_value("settings", "language", "zh"))
 	language_option.select(1 if language == "zh" else 0)
 	_apply_language()
 

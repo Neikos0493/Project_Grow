@@ -46,7 +46,7 @@ const TREE_OUTLINE := Color("#302d27")
 var cells: Array[Array] = []
 var farm_tiles: Dictionary = {}
 var drops: Array[Dictionary] = []
-var language := "en"
+var language := "zh"
 var props: Array[Dictionary] = [
 	{"cell": Vector2i(10, 7), "kind": "mailbox", "label": "Read mailbox", "used": false},
 	{"cell": Vector2i(20, 12), "kind": "notice", "label": "Read notice board", "used": false},
