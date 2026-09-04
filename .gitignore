@@ -1,0 +1,13 @@
+# Godot 4+ generated project data
+.godot/
+
+# Godot editor and export artifacts
+*.tmp
+*.import
+/export/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
