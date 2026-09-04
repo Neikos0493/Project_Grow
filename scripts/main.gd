@@ -7,11 +7,22 @@ const GREEN_SEED := "green_seed"
 const YELLOW_BALL := "yellow_ball"
 const MELEE_WEAPON := "melee_weapon"
 const PLANT := "plant"
+const BLUE_SEED := "blue_seed"
+const QUEST_ITEM_1 := "quest_item_1"
 const STARTING_COINS := 9999
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
 const PLANT_MASK := 4
+const MONSTER_MASK := 16
 const RESPAWN_HOLD_SECONDS := 2.0
+const WATER_GROW_TIME := 2.5
+const WATER_SPREAD_INTERVAL := 0.18
+const WATER_EMERGE_DELAY := 0.65
+const QUEST_AWAITING_PLANT := 0
+const QUEST_SEED_GRANTED := 1
+const QUEST_WATER_GROWING := 2
+const QUEST_MONSTER_ACTIVE := 3
+const QUEST_DEFEATED := 4
 
 @onready var world: MeadowWorld = $World
 @onready var player: MeadowPlayer = $Player
@@ -35,6 +46,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 @onready var toast_label: Label = $HUD/ToastBox/Toast
 @onready var death_overlay: ColorRect = $HUD/DeathOverlay
 @onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
+@onready var dialogue_box: MeadowDialogueBox = $HUD/DialogueBox
 
 var coins := STARTING_COINS
 var language := "en"
@@ -47,6 +59,14 @@ var _inventory_sell_tooltip_item_id := ""
 var _toast_tween: Tween
 var _respawn_hold_elapsed := 0.0
 var _respawn_triggered_for_death := false
+var quest_state := QUEST_AWAITING_PLANT
+var water_root := Vector2i(-1, -1)
+var water_growth_elapsed := 0.0
+var water_spread_elapsed := 0.0
+var water_spread_cells: Array[Vector2i] = []
+var water_spread_index := 0
+var water_emerge_elapsed := 0.0
+var lake_monster: MeadowLakeMonster
 
 func _ready() -> void:
 	_load_language()
@@ -70,6 +90,7 @@ func _ready() -> void:
 	player.fire_requested.connect(_on_fire_requested)
 	player.health_changed.connect(_on_health_changed)
 	player.died.connect(_on_player_died)
+	dialogue_box.closed.connect(_on_dialogue_closed)
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
 	shop_panel.set_inventory(inventory)
@@ -81,6 +102,7 @@ func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
 	radar_panel.hide()
+	dialogue_box.hide()
 	prompt_box.hide()
 	death_overlay.hide()
 	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
@@ -126,8 +148,10 @@ func _apply_game_language() -> void:
 	$HUD/DeathOverlay/DeathCard/DeathTitle.text = _msg("YOU FAINTED", "你昏倒了")
 	$HUD/DeathOverlay/DeathCard/RespawnInstruction.text = _msg("Hold SPACE for 2 seconds to return", "长按空格键 2 秒返回")
 	$HUD/ShopPanel/DimLabel.text = _msg("WOODLAND SHOP", "林地商店")
+	$HUD/DialogueBox/Panel/Hint.text = _msg("E  Continue|E  Close", "E  继续|E  关闭")
 
 func _process(delta: float) -> void:
+	_update_water_encounter(delta)
 	crosshair.queue_redraw()
 	_update_depth_order()
 	if not world.drops.is_empty():
@@ -139,7 +163,7 @@ func _process(delta: float) -> void:
 		return
 	if not shop_open:
 		_try_pickup()
-	if radar_open:
+	if dialogue_box.is_open() or radar_open:
 		prompt_box.hide()
 		_clear_inventory_sell_tooltip()
 		return
@@ -159,7 +183,7 @@ func _process(delta: float) -> void:
 		prompt_box.show()
 
 func _input(event: InputEvent) -> void:
-	if player.dead or radar_open:
+	if player.dead or radar_open or dialogue_box.is_open():
 		return
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event != null and mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
@@ -169,6 +193,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if dialogue_box.is_open():
+		return
 	if player.dead:
 		return
 	if radar_open:
@@ -215,6 +241,9 @@ func _update_depth_order() -> void:
 	shop.z_index = 11 if same_column and player.global_position.y <= shop_edge_y else 9
 
 func _on_interaction_requested() -> void:
+	if dialogue_box.is_open():
+		dialogue_box.advance()
+		return
 	if player.dead or melee_weapon.swinging:
 		return
 	if shop_open:
@@ -227,6 +256,9 @@ func _on_interaction_requested() -> void:
 	if not target.is_empty() and target["kind"] == "spaceship":
 		_open_radar()
 		return
+	if not target.is_empty() and target["kind"] == "lake_npc":
+		_open_lake_dialogue()
+		return
 	if not target.is_empty() and target["kind"] == "crate" and not bool(target["used"]):
 		if not inventory.can_add(GREEN_SEED, 3):
 			_show_toast(_msg("Inventory is full.", "背包已满。"))
@@ -235,11 +267,45 @@ func _on_interaction_requested() -> void:
 	if not message.is_empty() and not target.is_empty() and target["kind"] == "crate":
 		if inventory.try_add(GREEN_SEED, 3):
 			message = _msg("You found 3 green seeds.", "你找到了 3 颗绿种子。")
-
 		else:
 			_show_toast(_msg("Inventory is full.", "背包已满。"))
 			return
 	_show_toast(_msg("Nothing to interact with here.", "这里没有可互动的东西。") if message.is_empty() else message)
+
+func _open_lake_dialogue() -> void:
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var lines: Array[String] = []
+	var speaker := _msg("Lake Keeper", "湖之守望者")
+	match quest_state:
+		QUEST_AWAITING_PLANT:
+			if inventory.has_item(PLANT) and inventory.can_add(BLUE_SEED):
+				if inventory.remove_item(PLANT, 1):
+					if inventory.try_add(BLUE_SEED, 1):
+						quest_state = QUEST_SEED_GRANTED
+						lines = [_msg("Thank you. This blue seed belongs in the pond.", "谢谢。把这颗蓝色种子种进池塘吧。")]
+					else:
+						# Restore the delivered plant if the reward transaction fails.
+						inventory.try_add(PLANT, 1)
+						lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
+				else:
+					lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
+			elif inventory.has_item(PLANT):
+				lines = [_msg("Make room in your pack before delivering the plant.", "请先为蓝色种子腾出背包空间。")]
+			else:
+				lines = [_msg("Bring me one mature plant from the meadow.", "带一株草甸里的成熟植物给我。")]
+		QUEST_SEED_GRANTED:
+			lines = [_msg("Plant the blue seed in the pond to awaken the lake.", "把蓝色种子种在池塘里，唤醒湖水。")]
+		QUEST_WATER_GROWING, QUEST_MONSTER_ACTIVE:
+			lines = [_msg("The lake is already awake. Be careful.", "湖水已经醒来。小心。")]
+		QUEST_DEFEATED:
+			lines = [_msg("The lake is quiet again. Keep the relic safe.", "湖水再次平静了。保管好那件遗物。")]
+	dialogue_box.open_dialogue(speaker, lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+
+func _on_dialogue_closed() -> void:
+	player.controls_locked = player.dead
+	_last_prompt = ""
 
 func _open_radar() -> void:
 	radar_open = true
@@ -334,7 +400,7 @@ func _sell_inventory_slot(slot_index: int) -> void:
 	_update_inventory_sell_tooltip()
 
 func _update_inventory_sell_tooltip() -> void:
-	if player.dead or radar_open:
+	if player.dead or radar_open or dialogue_box.is_open():
 		_clear_inventory_sell_tooltip()
 		return
 	var mouse_position := get_viewport().get_mouse_position()
@@ -396,7 +462,7 @@ func _try_pickup() -> void:
 		_show_toast(_msg("Picked up %s." % inventory.get_item_name(str(taken["item_id"])), "拾取了 %s。" % inventory.get_item_name(str(taken["item_id"]))))
 
 func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
-	if shop_open or radar_open or player.dead:
+	if shop_open or radar_open or dialogue_box.is_open() or player.dead:
 		return
 	var item_id := inventory.get_selected_item_id()
 	var pointer := get_global_mouse_position()
@@ -428,8 +494,18 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				plant.queue_free()
 				return
 			_show_toast(_msg("Seed planted. It will mature in 3 seconds.", "种子已种下，3 秒后成熟。"))
+		BLUE_SEED:
+			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
+			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
+				_show_toast(_msg("Blue seeds must be planted in a free pond tile beside you.", "蓝色种子必须种在身边空闲的池塘水格里。"))
+				return
+			if not inventory.consume_selected():
+				world.clear_water_growth(water_cell)
+				return
+			_begin_water_growth(water_cell)
+			_show_toast(_msg("The pond begins to stir.", "池塘开始涌动。"))
 		YELLOW_BALL:
-			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
+			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK | MONSTER_MASK, 1, player, Color("#f3c969"))
 		MELEE_WEAPON:
 			melee_weapon.try_swing(direction)
 
@@ -454,14 +530,88 @@ func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
 	world.add_drop(position, PLANT, 1, 0)
 	_show_toast(_msg("The plant fell. Pick it up and sell it at the shop.", "植物倒下了，拾取后可以带到商店出售。"))
 
+func _begin_water_growth(root: Vector2i) -> void:
+	quest_state = QUEST_WATER_GROWING
+	water_root = root
+	water_growth_elapsed = 0.0
+	water_spread_elapsed = 0.0
+	water_spread_cells = world.get_water_growth_ring(root)
+	water_spread_index = 0
+	water_emerge_elapsed = 0.0
+
+func _update_water_encounter(delta: float) -> void:
+	if quest_state != QUEST_WATER_GROWING:
+		return
+	if water_growth_elapsed < WATER_GROW_TIME:
+		water_growth_elapsed += delta
+		if water_growth_elapsed >= WATER_GROW_TIME:
+			world.set_water_growth_state(water_root, 1)
+		return
+	if water_spread_index < water_spread_cells.size():
+		water_spread_elapsed += delta
+		if water_spread_elapsed >= WATER_SPREAD_INTERVAL:
+			water_spread_elapsed = 0.0
+			world.add_water_growth_cell(water_spread_cells[water_spread_index], water_root, water_spread_index + 1)
+			water_spread_index += 1
+		return
+	water_emerge_elapsed += delta
+	if water_emerge_elapsed < WATER_EMERGE_DELAY:
+		return
+	_spawn_lake_monster()
+
+func _spawn_lake_monster() -> void:
+	if is_instance_valid(lake_monster):
+		return
+	quest_state = QUEST_MONSTER_ACTIVE
+	var monster := MeadowLakeMonster.new()
+	plants.add_child(monster)
+	monster.setup(player, world, world.get_water_growth_center(water_root))
+	monster.died.connect(_on_lake_monster_died)
+	monster.stunned.connect(_on_lake_monster_stunned)
+	lake_monster = monster
+	_show_toast(_msg("The lake monster has awakened!", "湖中怪物苏醒了！"))
+
+func _on_lake_monster_stunned() -> void:
+	_show_toast(_msg("The monster is stunned for 3 seconds.", "怪物眩晕 3 秒。"))
+
+func _on_lake_monster_died(position: Vector2) -> void:
+	if quest_state != QUEST_MONSTER_ACTIVE:
+		return
+	lake_monster = null
+	world.clear_water_growth(water_root)
+	water_root = Vector2i(-1, -1)
+	quest_state = QUEST_DEFEATED
+	world.add_drop(position, QUEST_ITEM_1, 1, 0)
+	_show_toast(_msg("The monster dropped a quest relic.", "怪物掉落了任务道具 1。"))
+
+func _reset_lake_encounter_on_player_death() -> void:
+	if quest_state != QUEST_WATER_GROWING and quest_state != QUEST_MONSTER_ACTIVE:
+		return
+	if is_instance_valid(lake_monster):
+		lake_monster.dead = true
+		lake_monster.queue_free()
+	lake_monster = null
+	if water_root.x >= 0:
+		world.clear_water_growth(water_root)
+	water_root = Vector2i(-1, -1)
+	water_growth_elapsed = 0.0
+	water_spread_elapsed = 0.0
+	water_spread_cells.clear()
+	water_spread_index = 0
+	water_emerge_elapsed = 0.0
+	quest_state = QUEST_AWAITING_PLANT
+
 func _on_health_changed(current: int, maximum: int) -> void:
 	health_label.text = _msg("HP  %d/%d" % [current, maximum], "生命 %d/%d" % [current, maximum])
 
 func _on_player_died() -> void:
+	_reset_lake_encounter_on_player_death()
 	melee_weapon.cancel_swing()
 	_respawn_triggered_for_death = false
 	_reset_respawn_hold()
 	_close_shop()
+	if dialogue_box.is_open():
+		dialogue_box.close_dialogue()
 	prompt_box.hide()
 	_last_prompt = ""
 	if is_instance_valid(_toast_tween):

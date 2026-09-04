@@ -52,6 +52,28 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 50,
 		"description": "Swings a short yellow blade that lightly knocks back monsters.",
 	},
+	"blue_seed": {
+		"name": "Blue Seed",
+		"consumable": true,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "blue_seed",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "Plant it in the pond to awaken something ancient.",
+	},
+	"quest_item_1": {
+		"name": "Quest Relic 1",
+		"consumable": false,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "quest_item_1",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "A strange relic left behind by the lake monster.",
+	},
 	"plant": {
 		"name": "Plant",
 		"consumable": false,
@@ -122,6 +144,8 @@ func get_item_name(item_id: String) -> String:
 			"yellow_ball": return "黄色球"
 			"melee_weapon": return "草甸之刃"
 			"plant": return "植物"
+			"blue_seed": return "蓝色种子"
+			"quest_item_1": return "任务道具 1"
 	return str(get_item_definition(item_id).get("name", item_id))
 
 func get_item_description(item_id: String) -> String:
@@ -132,6 +156,8 @@ func get_item_description(item_id: String) -> String:
 			"yellow_ball": return "向草甸发射明亮的投射物。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
 			"plant": return "成熟植物，可以在商店出售。"
+			"blue_seed": return "只能种在水里，会唤醒湖中的古老生物。"
+			"quest_item_1": return "湖中怪物留下的任务道具。"
 	return str(get_item_definition(item_id).get("description", ""))
 
 func is_consumable(item_id: String) -> bool:
@@ -211,6 +237,30 @@ func remove_from_slot(index: int, amount: int = 1) -> bool:
 
 func remove_selected(amount: int = 1) -> bool:
 	return remove_from_slot(selected_slot, amount)
+
+func remove_item(item_id: String, amount: int = 1) -> bool:
+	if item_id.is_empty() or amount <= 0:
+		return false
+	var total := 0
+	for slot in slots:
+		if str(slot["id"]) == item_id:
+			total += int(slot["count"])
+	if total < amount:
+		return false
+	var remaining := amount
+	for slot in slots:
+		if str(slot["id"]) != item_id:
+			continue
+		var removed := mini(remaining, int(slot["count"]))
+		slot["count"] = int(slot["count"]) - removed
+		remaining -= removed
+		if int(slot["count"]) <= 0:
+			slot["id"] = ""
+			slot["count"] = 0
+		if remaining <= 0:
+			break
+	inventory_changed.emit()
+	return true
 
 func use_selected(amount: int = 1) -> bool:
 	var item_id := get_selected_item_id()

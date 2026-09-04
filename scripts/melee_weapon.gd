@@ -10,6 +10,7 @@ const HIT_DAMAGE := 1
 const KNOCKBACK_STRENGTH := 52.0
 const SWING_ARC := deg_to_rad(110.0)
 const PLANT_MASK := 4
+const MONSTER_MASK := 16
 const WORLD_MASK := 1
 
 @onready var player: MeadowPlayer = get_parent() as MeadowPlayer
@@ -70,9 +71,9 @@ func _resolve_hits() -> void:
 	var query := PhysicsShapeQueryParameters2D.new()
 	query.shape = hit_shape
 	query.transform = Transform2D(swing_direction.angle(), player.global_position + swing_direction * REACH * 0.5)
-	query.collision_mask = PLANT_MASK
+	query.collision_mask = PLANT_MASK | MONSTER_MASK
 	query.collide_with_areas = true
-	query.collide_with_bodies = false
+	query.collide_with_bodies = true
 	query.exclude = [player.get_rid()]
 	for result in space.intersect_shape(query, 32):
 		var collider: Object = result.get("collider")

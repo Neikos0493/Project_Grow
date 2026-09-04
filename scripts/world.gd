@@ -51,6 +51,7 @@ const BEACH_BACKDROP_TEXTURE := preload("res://assets/beach_backdrop.png")
 
 var cells: Array[Array] = []
 var farm_tiles: Dictionary = {}
+var water_growth: Dictionary = {}
 var drops: Array[Dictionary] = []
 var language := "en"
 var ship_transition_offset := Vector2.ZERO
@@ -59,6 +60,7 @@ var props: Array[Dictionary] = [
 	{"cell": Vector2i(10, 7), "kind": "mailbox", "label": "Read mailbox", "used": false},
 	{"cell": Vector2i(20, 12), "kind": "notice", "label": "Read notice board", "used": false},
 	{"cell": Vector2i(25, 17), "kind": "crate", "label": "Open crate", "used": false},
+	{"cell": Vector2i(27, 6), "kind": "lake_npc", "label": "Talk to the lake keeper", "used": false},
 	{
 		"cell": SHOP_CELL,
 		"kind": "shop",
@@ -105,6 +107,7 @@ func _prop_label(kind: String) -> String:
 		"shop": return "进入商店"
 		"lookout": return "眺望世界树"
 		"spaceship": return "打开导航雷达"
+		"lake_npc": return "与湖之守望者交谈"
 	return "互动"
 
 func _ready() -> void:
@@ -270,6 +273,107 @@ func clear_farm(cell: Vector2i) -> void:
 	farm_tiles.erase(cell)
 	queue_redraw()
 
+func is_water_cell(cell: Vector2i) -> bool:
+	return _is_in_bounds(cell) and cells[cell.y][cell.x] == WATER
+
+func get_water_footprint(anchor: Vector2i) -> Array[Vector2i]:
+	return [
+		anchor,
+		anchor + Vector2i.RIGHT,
+		anchor + Vector2i.DOWN,
+		anchor + Vector2i(1, 1),
+	]
+
+func get_water_anchor_for_root(root: Vector2i) -> Vector2i:
+	return Vector2i(clampi(root.x, 28, 33), clampi(root.y, 4, 7))
+
+func get_water_footprint_for_root(root: Vector2i) -> Array[Vector2i]:
+	return get_water_footprint(get_water_anchor_for_root(root))
+
+func get_water_growth_center(root: Vector2i) -> Vector2:
+	var anchor := get_water_anchor_for_root(root)
+	return cell_to_world(anchor) + Vector2(TILE_SIZE * 0.5, TILE_SIZE * 0.5)
+
+func is_water_footprint_valid(anchor: Vector2i) -> bool:
+	for cell in get_water_footprint(anchor):
+		if not is_water_cell(cell) or water_growth.has(cell):
+			return false
+	return true
+
+func can_plant_blue_seed(cell: Vector2i) -> bool:
+	if not is_water_cell(cell) or water_growth.has(cell):
+		return false
+	return is_water_footprint_valid(get_water_anchor_for_root(cell))
+
+func plant_blue_seed(cell: Vector2i) -> bool:
+	var root := get_water_anchor_for_root(cell)
+	if not can_plant_blue_seed(cell):
+		return false
+	for footprint_cell in get_water_footprint(root):
+		water_growth[footprint_cell] = {"root": root, "state": 0, "order": 0}
+	queue_redraw()
+	return true
+
+func set_water_growth_state(root: Vector2i, state: int) -> void:
+	var canonical_root := get_water_anchor_for_root(root)
+	for cell in water_growth.keys():
+		if water_growth[cell].get("root", Vector2i(-1, -1)) == canonical_root:
+			water_growth[cell]["state"] = state
+	queue_redraw()
+
+func get_water_growth_ring(root: Vector2i) -> Array[Vector2i]:
+	var canonical_root := get_water_anchor_for_root(root)
+	var ring: Array[Vector2i] = []
+	for y in range(canonical_root.y - 1, canonical_root.y + 3):
+		for x in range(canonical_root.x - 1, canonical_root.x + 3):
+			if x != canonical_root.x - 1 and x != canonical_root.x + 2 and y != canonical_root.y - 1 and y != canonical_root.y + 2:
+				continue
+			var cell := Vector2i(x, y)
+			if is_water_cell(cell) and not water_growth.has(cell):
+				ring.append(cell)
+	return ring
+
+func add_water_growth_cell(cell: Vector2i, root: Vector2i, order: int) -> bool:
+	var canonical_root := get_water_anchor_for_root(root)
+	if not is_water_cell(cell) or water_growth.has(cell):
+		return false
+	water_growth[cell] = {"root": canonical_root, "state": 2, "order": order}
+	queue_redraw()
+	return true
+
+func clear_water_growth(root: Vector2i) -> void:
+	var canonical_root := get_water_anchor_for_root(root)
+	var cells_to_clear: Array[Vector2i] = []
+	for cell in water_growth.keys():
+		if water_growth[cell].get("root", Vector2i(-1, -1)) == canonical_root:
+			cells_to_clear.append(cell)
+	for cell in cells_to_clear:
+		water_growth.erase(cell)
+	queue_redraw()
+
+func get_water_pointer_cell(mouse_world: Vector2, player_position: Vector2, facing: Vector2) -> Vector2i:
+	var cell := world_to_cell(mouse_world)
+	if not is_water_cell(cell):
+		return Vector2i(-1, -1)
+	var player_cell := world_to_cell(player_position)
+	if maxi(abs(cell.x - player_cell.x), abs(cell.y - player_cell.y)) > 1:
+		return Vector2i(-1, -1)
+	var target_offset := cell_to_world(cell) - player_position
+	if facing.length_squared() < 0.01 or target_offset.length_squared() < 0.01:
+		return Vector2i(-1, -1)
+	if facing.normalized().dot(target_offset.normalized()) < 0.25:
+		return Vector2i(-1, -1)
+	var root := get_water_anchor_for_root(cell)
+	return root if can_plant_blue_seed(cell) else Vector2i(-1, -1)
+
+func has_line_of_sight(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
+	var query := PhysicsRayQueryParameters2D.create(from, to)
+	query.collision_mask = WORLD_COLLISION_LAYER
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.exclude = exclude
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
 func get_map_size_pixels() -> Vector2:
 	return Vector2(MAP_SIZE.x * TILE_SIZE, MAP_SIZE.y * TILE_SIZE)
 
@@ -352,8 +456,29 @@ func _draw() -> void:
 			_draw_prop(prop)
 	for cell in farm_tiles:
 		_draw_farm_tile(cell, farm_tiles[cell])
+	for cell in water_growth:
+		_draw_water_growth_cell(cell, water_growth[cell])
 	for drop in drops:
 		_draw_drop(drop)
+
+func _draw_water_growth_cell(cell: Vector2i, growth: Dictionary) -> void:
+	var rect := Rect2(Vector2(cell) * TILE_SIZE + Vector2(2, 2), Vector2(TILE_SIZE - 4, TILE_SIZE - 4))
+	var state := int(growth.get("state", 0))
+	var color := Color("#275d78") if state == 0 else Color("#287d89")
+	if state >= 2:
+		color = Color("#3b9ba0")
+	draw_rect(rect, Color(color, 0.72), true)
+	draw_rect(rect, Color("#8de0d0", 0.85), false, 2.0)
+	var center := cell_to_world(cell)
+	if state == 0:
+		draw_circle(center, 4.0, Color("#b6e8ff"))
+		draw_arc(center, 9.0, 0.0, TAU, 16, Color("#6fcfe1", 0.8), 1.5)
+	else:
+		draw_line(center + Vector2(-8, 4), center + Vector2(-2, -7), Color("#8de0d0"), 2.0)
+		draw_line(center + Vector2(8, 5), center + Vector2(2, -9), Color("#65c7a5"), 2.0)
+		draw_circle(center + Vector2(0, -9), 5.0 if state == 1 else 8.0, Color("#3da99b"))
+	if state >= 2:
+		draw_circle(center + Vector2(-5, -12), 3.0, Color("#b0f1d1"))
 
 func _draw_farm_tile(cell: Vector2i, farm: Dictionary) -> void:
 	var rect := Rect2(Vector2(cell) * TILE_SIZE + Vector2(3, 3), Vector2(TILE_SIZE - 6, TILE_SIZE - 6))
@@ -538,6 +663,15 @@ func _draw_prop(prop: Dictionary) -> void:
 			else:
 				draw_line(center + Vector2(-8, -7), center + Vector2(8, 7), Color("#d4a666"), 2.0)
 				draw_line(center + Vector2(8, -7), center + Vector2(-8, 7), Color("#d4a666"), 2.0)
+		"lake_npc":
+			_draw_flat_ellipse(center + Vector2(0, 10), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
+			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-13, -7), center + Vector2(0, -21), center + Vector2(13, -7),
+			]), Color("#315c70"))
+			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#315c70"), 8.0)
+			draw_line(center + Vector2(6, 3), center + Vector2(13, 13), Color("#8b633f"), 2.0)
+			draw_circle(center + Vector2(15, 14), 3.0, Color("#6fcfe1"))
 		"lookout":
 			# A small marker gives the player a readable arrival point.
 			draw_line(center + Vector2(0, 10), center + Vector2(0, -14), Color("#5a4938"), 3.0)
@@ -682,6 +816,8 @@ func interact(origin: Vector2, facing: Vector2) -> String:
 			return "越过悬崖，古老的世界树让沉寂的天空停留在枝头。" if chinese else "Beyond the cliff, the ancient world tree holds the dead sky in its branches."
 		"spaceship":
 			return "导航雷达已准备就绪。" if chinese else "Navigation radar ready."
+		"lake_npc":
+			return "Lake keeper: Bring me one mature plant and I will give you a blue seed." if not chinese else "湖之守望者：带一株成熟植物来，我会给你蓝色种子。"
 		"crate":
 			if target["used"]:
 				return "木箱已经空了。" if chinese else "The crate is empty."
