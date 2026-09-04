@@ -67,6 +67,10 @@ const ITEM_DEFINITIONS := {
 
 var slots: Array[Dictionary] = []
 var selected_slot := 0
+var language := "en"
+
+func set_language(value: String) -> void:
+	language = "zh" if value == "zh" else "en"
 
 func _ready() -> void:
 	_reset_slots()
@@ -111,9 +115,23 @@ func get_item_definition(item_id: String) -> Dictionary:
 	return {"consumable": true, "droppable": true, "show_count": true, "max_stack": MAX_STACK}
 
 func get_item_name(item_id: String) -> String:
+	if language == "zh":
+		match item_id:
+			"hoe": return "锄头"
+			"green_seed": return "绿种子"
+			"yellow_ball": return "黄色球"
+			"melee_weapon": return "草甸之刃"
+			"plant": return "植物"
 	return str(get_item_definition(item_id).get("name", item_id))
 
 func get_item_description(item_id: String) -> String:
+	if language == "zh":
+		match item_id:
+			"hoe": return "将附近的草地翻耕成可种植的土地。"
+			"green_seed": return "种在翻耕土地上，长成草甸植物。"
+			"yellow_ball": return "向草甸发射明亮的投射物。"
+			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
+			"plant": return "成熟植物，可以在商店出售。"
 	return str(get_item_definition(item_id).get("description", ""))
 
 func is_consumable(item_id: String) -> bool:

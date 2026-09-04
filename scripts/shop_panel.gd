@@ -22,6 +22,16 @@ const GOLD := Color("#f3c969")
 
 var inventory: MeadowInventory
 var hovered_item_id := ""
+var language := "en"
+
+func set_language(value: String) -> void:
+	language = "zh" if value == "zh" else "en"
+	_update_hover_text()
+
+func _update_hover_text() -> void:
+	if hovered_item_id.is_empty() or inventory == null:
+		return
+	hover_details.text = "%s\n%s" % [inventory.get_item_name(hovered_item_id), inventory.get_item_description(hovered_item_id)]
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -82,7 +92,7 @@ func _draw_product(product: Dictionary) -> void:
 	_draw_price(card, inventory.get_buy_price(item_id))
 
 func _draw_price(card: Rect2, price: int) -> void:
-	var text := "%d COINS" % price
+	var text := "%d 金币" % price if language == "zh" else "%d COINS" % price
 	var font := ThemeDB.fallback_font
 	var font_size := 11
 	var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
@@ -122,7 +132,7 @@ func _on_product_mouse_entered(item_id: String) -> void:
 	if inventory == null or not is_shop_product(item_id):
 		return
 	hovered_item_id = item_id
-	hover_details.text = "%s\n%s" % [inventory.get_item_name(item_id), inventory.get_item_description(item_id)]
+	_update_hover_text()
 	hover_details.show()
 	queue_redraw()
 

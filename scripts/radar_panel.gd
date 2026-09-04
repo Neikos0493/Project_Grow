@@ -8,6 +8,20 @@ signal close_pressed
 @onready var meadow_point: Button = $MeadowPoint
 @onready var pond_point: Button = $PondPoint
 @onready var tree_point: Button = $TreePoint
+@onready var title_label: Label = $Title
+@onready var subtitle_label: Label = $SubTitle
+@onready var point_labels: Label = $PointLabels
+
+var language := "en"
+
+func set_language(value: String) -> void:
+	language = "zh" if value == "zh" else "en"
+	if not is_node_ready():
+		return
+	var chinese := language == "zh"
+	title_label.text = "导航雷达" if chinese else "NAVIGATION RADAR"
+	subtitle_label.text = "选择信号前往" if chinese else "Select a signal to travel"
+	point_labels.text = "01 绿野     02 静语池塘     03 世界树" if chinese else "01 GREENMEADOW     02 WHISPER POND     03 WORLD TREE"
 
 func _ready() -> void:
 	close_button.pressed.connect(func(): close_pressed.emit())

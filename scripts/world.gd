@@ -46,6 +46,7 @@ const TREE_OUTLINE := Color("#302d27")
 var cells: Array[Array] = []
 var farm_tiles: Dictionary = {}
 var drops: Array[Dictionary] = []
+var language := "en"
 var props: Array[Dictionary] = [
 	{"cell": Vector2i(10, 7), "kind": "mailbox", "label": "Read mailbox", "used": false},
 	{"cell": Vector2i(20, 12), "kind": "notice", "label": "Read notice board", "used": false},
@@ -72,6 +73,23 @@ var props: Array[Dictionary] = [
 		"no_collision": true,
 	},
 ]
+
+func set_language(value: String) -> void:
+	language = "zh" if value == "zh" else "en"
+
+func _prop_label(kind: String) -> String:
+	if language != "zh":
+		for prop in props:
+			if prop["kind"] == kind:
+				return str(prop["label"])
+	match kind:
+		"mailbox": return "阅读邮箱"
+		"notice": return "阅读告示牌"
+		"crate": return "打开木箱"
+		"shop": return "进入商店"
+		"lookout": return "眺望世界树"
+		"spaceship": return "打开导航雷达"
+	return "互动"
 
 func _ready() -> void:
 	_generate_map()
@@ -568,25 +586,28 @@ func get_interaction_prompt(origin: Vector2, facing: Vector2) -> String:
 	var target := _find_target(origin, facing)
 	if target.is_empty():
 		return ""
-	return target["label"]
+	return _prop_label(str(target["kind"]))
 
 func interact(origin: Vector2, facing: Vector2) -> String:
 	var target := _find_target(origin, facing)
 	if target.is_empty():
 		return ""
+	var chinese := language == "zh"
 	match target["kind"]:
 		"mailbox":
-			return "Mailbox: A quiet day. Maybe tomorrow."
+			return "邮箱：今天很安静。也许明天会有消息。" if chinese else "Mailbox: A quiet day. Maybe tomorrow."
 		"notice":
-			return "Notice board: Welcome to the meadow."
+			return "告示牌：欢迎来到草甸。" if chinese else "Notice board: Welcome to the meadow."
 		"shop":
-			return "Shop: Welcome! Take a look around."
+			return "商店：欢迎！随便看看吧。" if chinese else "Shop: Welcome! Take a look around."
 		"lookout":
-			return "Beyond the cliff, the ancient world tree holds the dead sky in its branches."
+			return "越过悬崖，古老的世界树让沉寂的天空停留在枝头。" if chinese else "Beyond the cliff, the ancient world tree holds the dead sky in its branches."
+		"spaceship":
+			return "导航雷达已准备就绪。" if chinese else "Navigation radar ready."
 		"crate":
 			if target["used"]:
-				return "The crate is empty."
+				return "木箱已经空了。" if chinese else "The crate is empty."
 			target["used"] = true
 			queue_redraw()
-			return "You found a seed packet."
+			return "你找到了一包种子。" if chinese else "You found a seed packet."
 	return ""
