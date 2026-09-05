@@ -56,6 +56,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if aim.length_squared() > 0.01:
 			fire_requested.emit(global_position, aim.normalized())
 
+func restore_state(saved_health: int) -> void:
+	health = clampi(saved_health, 0, MAX_HEALTH)
+	dead = health == 0
+	controls_locked = dead
+	velocity = Vector2.ZERO
+	health_changed.emit(health, MAX_HEALTH)
+	queue_redraw()
+
 func take_damage(amount: int = 1) -> bool:
 	if dead or amount <= 0:
 		return false

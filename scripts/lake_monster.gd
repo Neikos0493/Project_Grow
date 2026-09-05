@@ -20,6 +20,7 @@ const STUN_DURATION := 2.4
 const MELEE_DAMAGE := 2
 const CHARGE_DAMAGE := 4
 
+var entity_id := ""
 var target: MeadowPlayer
 var world: MeadowWorld
 var health := MAX_HEALTH
@@ -34,12 +35,61 @@ var attack_hit_resolved := false
 var dead := false
 var facing := Vector2.LEFT
 
-func setup(new_target: MeadowPlayer, new_world: MeadowWorld, spawn_position: Vector2) -> void:
+func setup(new_target: MeadowPlayer, new_world: MeadowWorld, spawn_map_position: Vector2) -> void:
 	target = new_target
 	world = new_world
-	global_position = spawn_position
+	global_position = world.to_global(spawn_map_position)
 	attacks_before_charge = randi_range(1, 2)
 	queue_redraw()
+
+func capture_state() -> Dictionary:
+	var map_position := world.to_local(global_position) if is_instance_valid(world) else global_position
+	var map_facing := world.global_direction_to_map(facing) if is_instance_valid(world) else facing
+	map_facing = map_facing.normalized() if map_facing.length_squared() > 0.01 else Vector2.LEFT
+	return {
+		"kind": "lake_monster",
+		"entity_id": entity_id,
+		"position": [map_position.x, map_position.y],
+		"health": clampi(health, 1, MAX_HEALTH),
+		"state": "stunned" if state == "stunned" else "chase",
+		"stun_remaining": maxf(0.0, STUN_DURATION - state_elapsed) if state == "stunned" else 0.0,
+		"facing": [map_facing.x, map_facing.y],
+	}
+
+func restore_state(data: Dictionary) -> void:
+	entity_id = str(data.get("entity_id", ""))
+	var fallback := world.to_local(global_position) if is_instance_valid(world) else global_position
+	var map_position := _data_to_position(data.get("position", []), fallback)
+	global_position = world.to_global(map_position) if is_instance_valid(world) else map_position
+	health = clampi(int(data.get("health", MAX_HEALTH)), 1, MAX_HEALTH)
+	var map_facing := _data_to_direction(data.get("facing", []), Vector2.LEFT)
+	facing = world.map_direction_to_global(map_facing).normalized() if is_instance_valid(world) else map_facing
+	state = "stunned" if str(data.get("state", "chase")) == "stunned" else "chase"
+	if state == "stunned":
+		var remaining := clampf(float(data.get("stun_remaining", STUN_DURATION)), 0.0, STUN_DURATION)
+		state_elapsed = STUN_DURATION - remaining
+	else:
+		state_elapsed = 0.0
+	dead = false
+	attacks_done = 0
+	charge_hit_player = false
+	attack_hit_resolved = false
+	velocity = Vector2.ZERO
+	collision_layer = MONSTER_MASK
+	queue_redraw()
+
+func _data_to_position(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Array and value.size() == 2:
+		var position := Vector2(float(value[0]), float(value[1]))
+		if is_finite(position.x) and is_finite(position.y):
+			return position
+	return fallback
+
+func _data_to_direction(value: Variant, fallback: Vector2) -> Vector2:
+	var direction := _data_to_position(value, fallback)
+	if direction.length_squared() < 0.01:
+		return Vector2.LEFT
+	return direction.normalized()
 
 func _ready() -> void:
 	collision_layer = MONSTER_MASK
@@ -114,15 +164,17 @@ func _begin_charge() -> void:
 	var offset := target.global_position - global_position
 	if offset.length_squared() < 0.01:
 		offset = facing
-	charge_direction = _grid_direction(offset.normalized())
+	var map_offset := world.global_direction_to_map(offset).normalized()
+	var map_charge_direction := _grid_direction(map_offset)
+	charge_direction = world.map_direction_to_global(map_charge_direction).normalized()
 	facing = charge_direction
-	var trigger_cell := world.world_to_cell(target.global_position)
-	var endpoint_step := Vector2i(roundi(charge_direction.x), roundi(charge_direction.y)) * 2
+	var trigger_cell := world.world_to_cell(world.to_local(target.global_position))
+	var endpoint_step := Vector2i(roundi(map_charge_direction.x), roundi(map_charge_direction.y)) * 2
 	var endpoint_cell := trigger_cell + endpoint_step
 	# Keep the planned endpoint inside the playable map; obstacles can still stop it earlier.
 	endpoint_cell.x = clampi(endpoint_cell.x, 1, world.MAP_SIZE.x - 2)
 	endpoint_cell.y = clampi(endpoint_cell.y, 1, world.MAP_SIZE.y - 2)
-	charge_endpoint = world.cell_to_world(endpoint_cell)
+	charge_endpoint = world.to_global(world.cell_to_world(endpoint_cell))
 	charge_hit_player = false
 	_change_state("charging")
 
@@ -159,7 +211,7 @@ func _charge(delta: float) -> void:
 			charge_hit_player = true
 			target.take_damage(CHARGE_DAMAGE)
 	global_position = to
-	if reached_endpoint or world.world_to_cell(global_position) == world.world_to_cell(charge_endpoint):
+	if reached_endpoint or world.world_to_cell(world.to_local(global_position)) == world.world_to_cell(world.to_local(charge_endpoint)):
 		global_position = charge_endpoint
 		attacks_done = 0
 		_change_state("chase")

@@ -1,10 +1,9 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://scripts/map_host.gd" id="2_map_host"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="3_player"]
 [ext_resource type="Script" path="res://scripts/melee_weapon.gd" id="9_melee_weapon"]
-[ext_resource type="Script" path="res://scripts/shop.gd" id="4_shop"]
 [ext_resource type="Script" path="res://scripts/crosshair.gd" id="5_crosshair"]
 [ext_resource type="Script" path="res://scripts/inventory.gd" id="6_inventory"]
 [ext_resource type="Script" path="res://scripts/inventory_hud.gd" id="7_inventory_hud"]
@@ -63,14 +62,11 @@ corner_radius_bottom_left = 22
 process_mode = 3
 script = ExtResource("1_main")
 
-[node name="World" type="Node2D" parent="."]
-script = ExtResource("2_world")
-
-[node name="Shop" type="Node2D" parent="."]
-z_index = 9
-script = ExtResource("4_shop")
+[node name="MapHost" type="Node2D" parent="."]
+script = ExtResource("2_map_host")
 
 [node name="Player" type="CharacterBody2D" parent="."]
+process_mode = 1
 z_index = 10
 collision_layer = 2
 collision_mask = 9
@@ -91,11 +87,6 @@ limit_smoothed = true
 
 [node name="Inventory" type="Node" parent="."]
 script = ExtResource("6_inventory")
-
-[node name="Projectiles" type="Node2D" parent="."]
-
-[node name="Plants" type="Node2D" parent="."]
-z_index = 6
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

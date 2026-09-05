@@ -169,7 +169,7 @@ text = "THE FIRES ARE LIT."
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="StartButton" type="Button" parent="Content/MenuPanel/Buttons"]
+[node name="ContinueButton" type="Button" parent="Content/MenuPanel/Buttons"]
 custom_minimum_size = Vector2(0, 54)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
@@ -179,7 +179,18 @@ theme_override_styles/normal = SubResource("StyleButton")
 theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/focus = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonHover")
-text = "START JOURNEY"
+text = "CONTINUE"
+
+[node name="StartButton" type="Button" parent="Content/MenuPanel/Buttons"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.94, 0.82, 1)
+theme_override_colors/font_hover_color = Color(0.98, 0.78, 0.39, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleButtonNormal")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/focus = SubResource("StyleButtonHover")
+text = "START NEW GAME"
 
 [node name="HowToPlayButton" type="Button" parent="Content/MenuPanel/Buttons"]
 custom_minimum_size = Vector2(0, 44)
@@ -217,9 +228,9 @@ text = "QUIT TO DESKTOP"
 [node name="Footer" type="Label" parent="Content"]
 layout_mode = 0
 offset_left = 22.0
-offset_top = 518.0
+offset_top = 476.0
 offset_right = 420.0
-offset_bottom = 544.0
+offset_bottom = 500.0
 theme_override_colors/font_color = Color(0.78, 0.83, 0.73, 0.8)
 theme_override_font_sizes/font_size = 11
 text = "v0.1  /  A QUIET PLACE TO EXPLORE"
@@ -227,12 +238,18 @@ text = "v0.1  /  A QUIET PLACE TO EXPLORE"
 [node name="Status" type="Label" parent="Content"]
 layout_mode = 0
 offset_left = 22.0
-offset_top = 554.0
+offset_top = 506.0
 offset_right = 520.0
-offset_bottom = 584.0
+offset_bottom = 536.0
 theme_override_colors/font_color = Color(0.98, 0.78, 0.39, 1)
 theme_override_font_sizes/font_size = 11
 text = ""
+
+[node name="NewGameConfirm" type="ConfirmationDialog" parent="."]
+title = "Replace autosave?"
+dialog_text = "Starting a new game will replace the current automatic save."
+ok_button_text = "START NEW GAME"
+cancel_button_text = "CANCEL"
 
 [node name="SettingsPanel" type="PanelContainer" parent="."]
 layout_mode = 1

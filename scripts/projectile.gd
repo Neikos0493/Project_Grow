@@ -54,8 +54,17 @@ func _physics_process(delta: float) -> void:
 
 func _draw() -> void:
 	if trail_length > 0.0:
-		draw_line(-direction * trail_length, direction * 4.0, Color(0.05, 0.1, 0.1, 0.55), 7.0)
-		draw_line(-direction * trail_length, direction * 4.0, tint, 3.0)
+		var local_direction := global_transform.affine_inverse().basis_xform(direction)
+		var local_trail := global_transform.affine_inverse().basis_xform(
+			direction * trail_length
+		)
+		var local_tip := global_transform.affine_inverse().basis_xform(
+			direction * 4.0
+		)
+		if local_direction.length_squared() > 0.0001:
+			local_direction = local_direction.normalized()
+		draw_line(-local_trail, local_tip, Color(0.05, 0.1, 0.1, 0.55), 7.0)
+		draw_line(-local_trail, local_tip, tint, 3.0)
 	draw_circle(Vector2.ZERO, RADIUS + 2.0, Color(0.05, 0.1, 0.1, 0.5))
 	draw_circle(Vector2.ZERO, RADIUS, tint)
 	draw_circle(Vector2(-2, -2), 1.8, Color(1, 0.97, 0.75, 0.9))

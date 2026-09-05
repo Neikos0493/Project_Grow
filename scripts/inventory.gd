@@ -168,6 +168,36 @@ func _reset_slots() -> void:
 	for _index in range(SLOT_COUNT):
 		slots.append({"id": "", "count": 0})
 
+func export_state() -> Dictionary:
+	var slot_data: Array[Dictionary] = []
+	for index in range(SLOT_COUNT):
+		var slot := get_slot(index)
+		slot_data.append({
+			"id": str(slot.get("id", "")),
+			"count": int(slot.get("count", 0)),
+		})
+	return {
+		"slots": slot_data,
+		"selected_slot": clampi(selected_slot, 0, SLOT_COUNT - 1),
+	}
+
+func import_state(data: Dictionary) -> void:
+	var next_slots: Array[Dictionary] = []
+	var incoming: Variant = data.get("slots", [])
+	for index in range(SLOT_COUNT):
+		var normalized := {"id": "", "count": 0}
+		if incoming is Array and index < incoming.size() and incoming[index] is Dictionary:
+			var item_id := str(incoming[index].get("id", ""))
+			if ITEM_DEFINITIONS.has(item_id):
+				var count := clampi(int(incoming[index].get("count", 0)), 0, get_item_max_stack(item_id))
+				if count > 0:
+					normalized = {"id": item_id, "count": count}
+		next_slots.append(normalized)
+	slots = next_slots
+	selected_slot = clampi(int(data.get("selected_slot", 0)), 0, SLOT_COUNT - 1)
+	inventory_changed.emit()
+	selection_changed.emit(selected_slot)
+
 func select_slot(index: int) -> void:
 	var next_slot := clampi(index, 0, SLOT_COUNT - 1)
 	if next_slot == selected_slot:
@@ -298,6 +328,61 @@ func try_add(item_id: String, amount: int = 1) -> bool:
 		if remaining <= 0:
 			inventory_changed.emit()
 			return true
+	return false
+
+func try_exchange(remove_item_id: String, add_item_id: String, amount: int = 1) -> bool:
+	if remove_item_id.is_empty() or add_item_id.is_empty() or amount <= 0:
+		return false
+	var candidate_slots: Array[Dictionary] = slots.duplicate(true)
+	if not _remove_from_slots(candidate_slots, remove_item_id, amount):
+		return false
+	if not _add_to_slots(candidate_slots, add_item_id, amount):
+		return false
+	slots = candidate_slots
+	inventory_changed.emit()
+	return true
+
+func _remove_from_slots(target_slots: Array[Dictionary], item_id: String, amount: int) -> bool:
+	var total := 0
+	for slot in target_slots:
+		if str(slot["id"]) == item_id:
+			total += int(slot["count"])
+	if total < amount:
+		return false
+	var remaining := amount
+	for slot in target_slots:
+		if str(slot["id"]) != item_id:
+			continue
+		var removed := mini(remaining, int(slot["count"]))
+		slot["count"] = int(slot["count"]) - removed
+		remaining -= removed
+		if int(slot["count"]) <= 0:
+			slot["id"] = ""
+			slot["count"] = 0
+		if remaining <= 0:
+			return true
+	return false
+
+func _add_to_slots(target_slots: Array[Dictionary], item_id: String, amount: int) -> bool:
+	if not ITEM_DEFINITIONS.has(item_id):
+		return false
+	var max_stack := get_item_max_stack(item_id)
+	var remaining := amount
+	for slot in target_slots:
+		if str(slot["id"]) == item_id and int(slot["count"]) < max_stack:
+			var added := mini(remaining, max_stack - int(slot["count"]))
+			slot["count"] = int(slot["count"]) + added
+			remaining -= added
+			if remaining <= 0:
+				return true
+	for slot in target_slots:
+		if str(slot["id"]).is_empty():
+			var added := mini(remaining, max_stack)
+			slot["id"] = item_id
+			slot["count"] = added
+			remaining -= added
+			if remaining <= 0:
+				return true
 	return false
 
 func remove_from_slot(index: int, amount: int = 1) -> bool:
