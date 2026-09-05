@@ -1,10 +1,11 @@
 class_name MeadowMeleeWeapon
 extends Node2D
-## Short-range melee swing with a procedural placeholder weapon.
+## Short-range melee swing using the sword item texture.
 
+const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
 const SWING_DURATION := 0.4
 const HIT_TIME := 0.2
-const REACH := 42.0
+const REACH := 48.0
 const WIDTH := 16.0
 const HIT_DAMAGE := 1
 const KNOCKBACK_STRENGTH := 52.0
@@ -105,9 +106,9 @@ func _draw() -> void:
 	var progress := swing_elapsed / SWING_DURATION
 	var swing_angle := swing_direction.angle() - SWING_ARC * 0.5 + SWING_ARC * progress
 	draw_set_transform(Vector2.ZERO, swing_angle, Vector2.ONE)
-	var weapon_rect := Rect2(Vector2(7.0, -WIDTH * 0.5), Vector2(REACH, WIDTH))
-	draw_rect(weapon_rect.grow(2.0), Color(0.05, 0.1, 0.1, 0.65), true)
-	draw_rect(weapon_rect, Color("#f3c969"), true)
-	draw_rect(weapon_rect, Color("#26353b"), false, 2.0)
-	draw_rect(Rect2(weapon_rect.position + Vector2(4.0, 3.0), Vector2(REACH - 8.0, 3.0)), Color(1.0, 0.96, 0.72, 0.8), true)
+	var texture_size := SWORD_TEXTURE.get_size()
+	var texture_scale := (REACH + 16.0) / texture_size.x
+	var sword_size := texture_size * texture_scale
+	var sword_rect := Rect2(Vector2(-5.0, -sword_size.y * 0.5), sword_size)
+	draw_texture_rect(SWORD_TEXTURE, sword_rect, false)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

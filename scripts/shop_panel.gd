@@ -11,6 +11,7 @@ const CARD_COLOR := Color("#493329")
 const CARD_HOVER_COLOR := Color("#634431")
 const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
+const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
 
 @onready var product_hitboxes: Control = $ProductHitboxes
 @onready var scroll_bar: HScrollBar = $ProductScrollBar
@@ -151,9 +152,8 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_circle(center + Vector2(-6, -6), 7.0, Color("#4d9b55"))
 		draw_circle(center + Vector2(6, -4), 7.0, Color("#72c45f"))
 	elif icon == "melee_weapon":
-		draw_rect(Rect2(center + Vector2(-18, -6), Vector2(36, 12)), Color("#f3c969"), true)
-		draw_rect(Rect2(center + Vector2(-18, -6), Vector2(36, 12)), Color("#26353b"), false, 2.0)
-		draw_rect(Rect2(center + Vector2(-11, -3), Vector2(22, 3)), Color(1.0, 0.96, 0.72, 0.8), true)
+		var icon_size := Vector2(52.0, 52.0 * SWORD_TEXTURE.get_height() / SWORD_TEXTURE.get_width())
+		draw_texture_rect(SWORD_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)
 	else:
 		draw_rect(Rect2(center - Vector2(12, 12), Vector2(24, 24)), Color("#b68a5b"), true)
 		draw_rect(Rect2(center - Vector2(12, 12), Vector2(24, 24)), Color("#e9dfc4"), false, 2.0)
