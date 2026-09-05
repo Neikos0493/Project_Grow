@@ -12,6 +12,7 @@ const CARD_HOVER_COLOR := Color("#634431")
 const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
+const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
 
 @onready var product_hitboxes: Control = $ProductHitboxes
 @onready var scroll_bar: HScrollBar = $ProductScrollBar
@@ -144,9 +145,8 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_circle(center, 13.0, Color("#e77a32"))
 		draw_circle(center + Vector2(-4, -4), 3.5, Color("#ffd080"))
 	elif icon == "hoe":
-		draw_line(center + Vector2(-10, 14), center + Vector2(7, -11), Color("#a8754f"), 5.0)
-		draw_line(center + Vector2(2, -11), center + Vector2(15, -11), Color("#c6cbd0"), 5.0)
-		draw_line(center + Vector2(2, -11), center + Vector2(7, -2), Color("#c6cbd0"), 3.5)
+		var icon_size := Vector2(52.0, 52.0 * HOE_TEXTURE.get_height() / HOE_TEXTURE.get_width())
+		draw_texture_rect(HOE_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)
 	elif icon == "plant":
 		draw_line(center + Vector2(0, 12), center + Vector2(0, -6), Color("#24523a"), 4.0)
 		draw_circle(center + Vector2(-6, -6), 7.0, Color("#4d9b55"))

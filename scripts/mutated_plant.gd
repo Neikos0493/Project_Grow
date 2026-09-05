@@ -5,6 +5,8 @@ extends MeadowPursuingPlant
 signal projectile_requested(origin: Vector2, directions: Array[Vector2])
 
 const RING_PROJECTILE_COUNT := 6
+const MUTATED_PEA_SHEET := preload("res://image/Monster_pea_SP/ball-Sheet.png")
+const MUTATED_PEA_WAIT_SHEET := preload("res://image/Monster_pea_SP/ball-wait-Sheet.png")
 
 func _update_jump(delta: float) -> void:
 	jump_elapsed += delta
@@ -30,20 +32,24 @@ func _draw_jumping_plant() -> void:
 	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0) if jumping else 0.0
 	var lift := sin(progress * PI) * JUMP_HEIGHT
 	var body_position := Vector2(0, -6 - lift)
-	var outline := Color("#26353b")
-	draw_shadow_ellipse(Vector2(0, 10), Vector2(15, 6), Color(0.05, 0.1, 0.1, 0.32))
-	draw_circle(body_position, 17.0, outline)
-	draw_circle(body_position, 14.0, Color("#f3c969"))
-	draw_circle(body_position + Vector2(-5, -3), 2.8, Color("#fff1bd"))
-	draw_circle(body_position + Vector2(5, -3), 2.8, Color("#fff1bd"))
-	draw_circle(body_position + Vector2(-5, -3), 1.3, outline)
-	draw_circle(body_position + Vector2(5, -3), 1.3, outline)
-	draw_colored_polygon(PackedVector2Array([
-		body_position + Vector2(-9, 5), body_position + Vector2(9, 5), body_position + Vector2(0, 11),
-	]), Color("#592d37"))
-	if jumping:
-		draw_arc(body_position, 23.0, 0.0, TAU, 24, Color("#f3c969"), 2.0, true)
-	else:
-		draw_arc(Vector2.ZERO, 28.0, 0.0, TAU, 24, Color(0.45, 0.77, 0.37, 0.16), 1.0, true)
+	var frame_index := clampi(
+		int(progress * float(PEA_JUMP_FRAME_COUNT)),
+		0,
+		PEA_JUMP_FRAME_COUNT - 1
+	)
+	var frames: Array = PEA_RIGHT_FRAMES if jump_faces_right else PEA_LEFT_FRAMES
+	var frame := int(frames[frame_index])
+	var texture := MUTATED_PEA_SHEET
+	var frame_size := PEA_FRAME_SIZE
+	if not jumping:
+		frame = int(Time.get_ticks_msec() / 420) % PEA_WAIT_FRAME_COUNT
+		texture = MUTATED_PEA_WAIT_SHEET
+		frame_size = PEA_WAIT_FRAME_SIZE
+	var source := Rect2(frame * frame_size.x, 0, frame_size.x, frame_size.y)
+	var display_size := Vector2(frame_size) * PEA_DISPLAY_SCALE
+	var destination := Rect2(body_position - display_size * 0.5, display_size)
+	if not jumping:
+		destination.position += PEA_WAIT_CONTENT_OFFSET * PEA_DISPLAY_SCALE
+	draw_texture_rect_region(texture, destination, source)
 	for index in range(health):
 		draw_circle(body_position + Vector2(-8 + index * 8, -22), 2.2, Color("#f0d070"))

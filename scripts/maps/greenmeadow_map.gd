@@ -82,7 +82,10 @@ func _build_map() -> void:
 		{
 			"id": "greenmeadow.shop", "cell": SHOP_CELL, "kind": "shop", "used": false,
 			"label_en": "Visit shop", "label_zh": "进入商店", "message_en": "Shop: Welcome! Take a look around.", "message_zh": "商店：欢迎！随便看看吧。",
-			"footprint": [Vector2i(14, 9), SHOP_CELL, Vector2i(16, 9)],
+			"footprint": [
+				Vector2i(14, 9), Vector2i(15, 9), Vector2i(16, 9), Vector2i(17, 9),
+				Vector2i(14, 10), Vector2i(15, 10), Vector2i(16, 10), Vector2i(17, 10),
+			],
 		},
 		{
 			"id": "greenmeadow.lookout", "cell": LOOKOUT_CELL, "kind": "lookout", "used": false, "no_collision": true,
@@ -100,7 +103,8 @@ func _prop(id: String, cell: Vector2i, kind: String, label_en: String, label_zh:
 	return {"id": id, "cell": cell, "kind": kind, "used": false, "label_en": label_en, "label_zh": label_zh, "message_en": message_en, "message_zh": message_zh}
 
 func _after_map_ready() -> void:
-	get_shop_node().position = cell_to_world(SHOP_CELL) + Vector2(0, TILE_SIZE * 0.5)
+	# Center the four-column building over its four-cell footprint.
+	get_shop_node().position = cell_to_world(SHOP_CELL) + Vector2(TILE_SIZE * 0.5, TILE_SIZE * 0.5)
 
 func _add_map_collisions(map_collisions: StaticBody2D) -> void:
 	_add_rectangle_collision(map_collisions, Vector2(cell_to_world(LOOKOUT_CELL).x, 0.0), Vector2(float((CLIFF_X_MAX - CLIFF_X_MIN + 1) * TILE_SIZE), 8.0))

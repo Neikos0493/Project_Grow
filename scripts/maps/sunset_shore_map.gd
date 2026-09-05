@@ -79,7 +79,10 @@ func _build_map() -> void:
 			"label_zh": "进入海滨商店",
 			"message_en": "Beach shop: Orange seeds are in stock.",
 			"message_zh": "海滨商店：橙色种子已经到货。",
-			"footprint": [Vector2i(14, 9), SHOP_CELL, Vector2i(16, 9)],
+			"footprint": [
+				Vector2i(14, 9), Vector2i(15, 9), Vector2i(16, 9), Vector2i(17, 9),
+				Vector2i(14, 10), Vector2i(15, 10), Vector2i(16, 10), Vector2i(17, 10),
+			],
 		},
 		{
 			"id": "sunset_shore.ranger",
@@ -105,7 +108,8 @@ func _build_map() -> void:
 	]
 
 func _after_map_ready() -> void:
-	get_shop_node().position = cell_to_world(SHOP_CELL) + Vector2(0, TILE_SIZE * 0.5)
+	# Center the four-column building over its four-cell footprint.
+	get_shop_node().position = cell_to_world(SHOP_CELL) + Vector2(TILE_SIZE * 0.5, TILE_SIZE * 0.5)
 
 func _validate_map() -> void:
 	super._validate_map()

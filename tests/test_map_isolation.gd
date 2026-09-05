@@ -21,6 +21,8 @@ static func run(root: Window) -> Array[String]:
 	_check("greenmeadow.notice_board" in green_ids, "Greenmeadow owns its notice board", failures)
 	_check(shore.get_node_or_null("Shop") != null, "Sunset Shore owns its beach shop", failures)
 	_check(shore.get_shop_node() != green.get_shop_node(), "Each map owns an independent shop instance", failures)
+	_check_shop_footprint(green, "Greenmeadow", failures)
+	_check_shop_footprint(shore, "Sunset Shore", failures)
 	var shore_ids := _prop_ids(shore)
 	_check("sunset_shore.shop" in shore_ids, "Sunset Shore owns its shop prop", failures)
 	for prop_id in shore_ids:
@@ -90,6 +92,21 @@ static func _test_drop_restoration(green: MeadowWorld, shore: MeadowWorld, failu
 	_check(all_accepted and green.drops.size() == MeadowWorld.MAX_DROPS, "The first 256 runtime drops are retained", failures)
 	_check(not green.add_drop(Vector2(16.0, 16.0), "plant", 1, 0), "The 257th runtime drop is rejected", failures)
 	_check(green.drops.size() == MeadowWorld.MAX_DROPS, "Rejected 257th runtime drop does not mutate the drop list", failures)
+
+static func _check_shop_footprint(map: MeadowWorld, map_name: String, failures: Array[String]) -> void:
+	var shop_cells: Array = []
+	for prop in map.props:
+		if str(prop.get("kind", "")) == "shop":
+			shop_cells = prop.get("footprint", [])
+			break
+	_check(map.get_shop_node().position.is_equal_approx(Vector2(512, 320)), "%s shop keeps its centered anchor" % map_name, failures)
+	var expected_cells: Array[Vector2i] = []
+	for y in range(9, 11):
+		for x in range(14, 18):
+			expected_cells.append(Vector2i(x, y))
+	_check(shop_cells.size() == 8, "%s shop blocks 8 cells" % map_name, failures)
+	for cell in expected_cells:
+		_check(cell in shop_cells, "%s shop footprint includes %s" % [map_name, cell], failures)
 
 static func _prop_ids(map: MeadowWorld) -> Array[String]:
 	var result: Array[String] = []

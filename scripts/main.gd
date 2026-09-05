@@ -33,6 +33,10 @@ const AUTOSAVE_INTERVAL := 5.0
 const AUTOSAVE_DEBOUNCE := 0.75
 const AUTOSAVE_RETRY_MAX_SECONDS := 15.0
 const DROP_PICKUP_DELAY_MSEC := 3000
+const AUTO_FIRE_CADENCE := {
+	"yellow_ball": 0.18,
+	"melee_weapon": 0.4,
+}
 
 @onready var map_host: MeadowMapHost = $MapHost
 @onready var player: MeadowPlayer = $Player
@@ -71,6 +75,9 @@ var language := "en"
 var shop_open := false
 var radar_open := false
 var traveling := false
+var _fire_held := false
+var _held_weapon_id := ""
+var _auto_fire_remaining := 0.0
 var plant_entities: Dictionary = {}
 var next_entity_serial := 1
 var _last_prompt := ""
@@ -253,6 +260,7 @@ func _apply_pause_language() -> void:
 	pause_menu_button.text = _msg("MAIN MENU", "返回主菜单")
 
 func _set_paused(value: bool) -> void:
+	_clear_held_fire()
 	if is_instance_valid(map_host):
 		map_host.set_runtime_suspended(value)
 	get_tree().paused = value
@@ -273,9 +281,11 @@ func _process(delta: float) -> void:
 	if get_tree().paused or not is_instance_valid(world):
 		return
 	if traveling:
+		_clear_held_fire()
 		prompt_box.hide()
 		return
 	_update_autosave(delta)
+	_update_auto_fire(delta)
 	_update_water_encounter(delta)
 	_update_saxaul_grass_spread(delta)
 	crosshair.queue_redraw()
@@ -283,6 +293,7 @@ func _process(delta: float) -> void:
 	if not world.drops.is_empty():
 		world.queue_redraw()
 	if player.dead:
+		_clear_held_fire()
 		prompt_box.hide()
 		_clear_inventory_sell_tooltip()
 		_update_respawn_hold(delta)
@@ -290,10 +301,12 @@ func _process(delta: float) -> void:
 	if not shop_open:
 		_try_pickup()
 	if dialogue_box.is_open() or radar_open:
+		_clear_held_fire()
 		prompt_box.hide()
 		_clear_inventory_sell_tooltip()
 		return
 	if shop_open:
+		_clear_held_fire()
 		prompt_box.hide()
 		_update_inventory_sell_tooltip()
 		return
@@ -309,16 +322,36 @@ func _process(delta: float) -> void:
 		prompt_box.show()
 
 func _input(event: InputEvent) -> void:
-	if get_tree().paused or traveling or player.dead or radar_open or dialogue_box.is_open():
-		return
 	var mouse_event := event as InputEventMouseButton
-	if mouse_event != null and mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
+	if mouse_event == null or mouse_event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if mouse_event.pressed:
+		if get_tree().paused or traveling or player.dead or player.controls_locked or radar_open or dialogue_box.is_open():
+			return
 		var slot_index := inventory_hud.get_slot_at_viewport_position(mouse_event.position)
 		if slot_index >= 0:
+			_clear_held_fire()
 			inventory.select_slot(slot_index)
 			get_viewport().set_input_as_handled()
+			return
+		var item_id := inventory.get_selected_item_id()
+		if AUTO_FIRE_CADENCE.has(item_id):
+			_fire_held = true
+			_held_weapon_id = item_id
+			_auto_fire_remaining = 0.0
+			_update_auto_fire(0.0)
+		else:
+			var direction := get_global_mouse_position() - player.global_position
+			if direction.length_squared() > 0.01:
+				_on_fire_requested(player.global_position, direction.normalized(), item_id)
+		get_viewport().set_input_as_handled()
+	else:
+		_clear_held_fire()
 
 func _unhandled_input(event: InputEvent) -> void:
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event != null and mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed:
+		_clear_held_fire()
 	if _is_escape(event):
 		if traveling or dialogue_box.is_open() or player.dead:
 			return
@@ -357,7 +390,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_drop_selected_item()
 				get_viewport().set_input_as_handled()
 	if event is InputEventMouseButton:
-		var mouse_event := event as InputEventMouseButton
 		if mouse_event.pressed:
 			if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
 				inventory.cycle_selection(-1)
@@ -365,6 +397,33 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				inventory.cycle_selection(1)
 				get_viewport().set_input_as_handled()
+
+func _clear_held_fire() -> void:
+	_fire_held = false
+	_held_weapon_id = ""
+	_auto_fire_remaining = 0.0
+
+func _update_auto_fire(delta: float) -> void:
+	if not _fire_held or _held_weapon_id.is_empty():
+		return
+	if not AUTO_FIRE_CADENCE.has(_held_weapon_id):
+		_clear_held_fire()
+		return
+	if player.dead or player.controls_locked or traveling or shop_open or radar_open or dialogue_box.is_open():
+		_clear_held_fire()
+		return
+	if inventory.get_selected_item_id() != _held_weapon_id:
+		_clear_held_fire()
+		return
+	_auto_fire_remaining = maxf(0.0, _auto_fire_remaining - delta)
+	if _auto_fire_remaining > 0.0:
+		return
+	var direction := get_global_mouse_position() - player.global_position
+	if direction.length_squared() < 0.01:
+		return
+	player.set_attack_facing(direction)
+	_on_fire_requested(player.global_position, direction.normalized(), _held_weapon_id)
+	_auto_fire_remaining = float(AUTO_FIRE_CADENCE[_held_weapon_id])
 
 func _is_escape(event: InputEvent) -> bool:
 	var key_event := event as InputEventKey
@@ -374,10 +433,34 @@ func _update_depth_order() -> void:
 	if not is_instance_valid(shop):
 		return
 	var player_map_position := world.to_local(player.global_position)
-	var shop_map_position := world.to_local(shop.global_position)
-	var shop_edge_y := shop_map_position.y + world.TILE_SIZE * 0.5
-	var same_column: bool = abs(player_map_position.x - shop_map_position.x) <= float(MeadowWorld.TILE_SIZE) * 1.5 + 10.0
-	shop.z_index = 11 if same_column and player_map_position.y <= shop_edge_y else 9
+	var player_cell := world.world_to_cell(player_map_position)
+	# Put the player behind the shop only in its 4x2 blocked area and the
+	# one-cell-high visual strip directly above that area.
+	var shop_depth_zone := _get_shop_depth_zone()
+	var player_behind_shop := shop_depth_zone.size.x > 0.0 and shop_depth_zone.size.y > 0.0 and shop_depth_zone.has_point(Vector2(player_cell))
+	# Keep the shop above the entire player subtree while they are behind it.
+	shop.z_index = 12 if player_behind_shop else 9
+
+func _get_shop_depth_zone() -> Rect2:
+	var min_cell := Vector2i(999999, 999999)
+	var max_cell := Vector2i(-999999, -999999)
+	for prop in world.props:
+		if str(prop.get("kind", "")) != "shop":
+			continue
+		for cell_value in prop.get("footprint", []):
+			if not cell_value is Vector2i:
+				continue
+			var cell: Vector2i = cell_value
+			min_cell.x = mini(mini(min_cell.x, cell.x), cell.x)
+			min_cell.y = mini(mini(min_cell.y, cell.y), cell.y)
+			max_cell.x = maxi(maxi(max_cell.x, cell.x), cell.x)
+			max_cell.y = maxi(maxi(max_cell.y, cell.y), cell.y)
+		break
+	if max_cell.x < min_cell.x or max_cell.y < min_cell.y:
+		return Rect2()
+	# Include one four-cell row above the blocked footprint.
+	min_cell.y -= 1
+	return Rect2(Vector2(min_cell), Vector2(max_cell - min_cell + Vector2i.ONE))
 
 func _on_interaction_requested() -> void:
 	if dialogue_box.is_open():
@@ -385,6 +468,7 @@ func _on_interaction_requested() -> void:
 		return
 	if traveling or player.dead or melee_weapon.swinging:
 		return
+	_clear_held_fire()
 	if shop_open:
 		_close_shop()
 		return
@@ -781,10 +865,10 @@ func _try_pickup() -> void:
 	if inventory.try_add(str(taken["item_id"]), int(taken["count"])):
 		_show_toast(_msg("Picked up %s." % inventory.get_item_name(str(taken["item_id"])), "拾取了 %s。" % inventory.get_item_name(str(taken["item_id"]))))
 
-func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
-	if traveling or shop_open or radar_open or dialogue_box.is_open() or player.dead:
+func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: String = "") -> void:
+	if traveling or shop_open or radar_open or dialogue_box.is_open() or player.dead or player.controls_locked:
 		return
-	var item_id := inventory.get_selected_item_id()
+	var item_id := requested_item_id if not requested_item_id.is_empty() else inventory.get_selected_item_id()
 	var pointer_map_position := world.to_local(get_global_mouse_position())
 	var player_map_position := world.to_local(player.global_position)
 	var player_map_facing := _player_facing_in_map()
@@ -855,9 +939,11 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				item_id
 			)
 		YELLOW_BALL:
+			player.set_attack_facing(direction)
 			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK | MONSTER_MASK, 1, player, Color("#f3c969"))
 		MELEE_WEAPON:
-			melee_weapon.try_swing(direction)
+			if melee_weapon.try_swing(direction):
+				player.set_attack_facing(direction)
 
 func _plant_saxaul_seed_at(cell: Vector2i) -> String:
 	if is_instance_valid(saxaul_boss) \
@@ -927,7 +1013,10 @@ func _spawn_projectile(
 	source: Node,
 	tint: Color,
 	speed: float = MeadowProjectile.SPEED,
-	beam_length: float = 0.0
+	beam_length: float = 0.0,
+	visual_texture: Texture2D = null,
+	visual_source_rect := Rect2(0, 0, 0, 0),
+	visual_display_size := Vector2.ZERO
 ) -> void:
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
@@ -940,14 +1029,29 @@ func _spawn_projectile(
 		source,
 		tint,
 		speed,
-		beam_length
+		beam_length,
+		visual_texture,
+		visual_source_rect,
+		visual_display_size
 	)
 
 func _on_green_plant_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
 		return
 	for direction in directions:
-		_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#59b35b"), 180.0)
+		_spawn_projectile(
+			origin + direction * 14.0,
+			direction,
+			WORLD_MASK | PLAYER_MASK,
+			1,
+			null,
+			Color("#f3c969"),
+			180.0,
+			0.0,
+			MeadowProjectile.MUTATED_PEA_TEXTURE,
+			MeadowProjectile.MUTATED_PEA_SOURCE_RECT,
+			MeadowProjectile.MUTATED_PEA_DISPLAY_SIZE
+		)
 
 func _on_orange_cactus_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
@@ -1670,7 +1774,9 @@ func _capture_and_save() -> bool:
 func _notification(what: int) -> void:
 	if not is_node_ready():
 		return
-	if what == NOTIFICATION_APPLICATION_PAUSED:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		_clear_held_fire()
+	elif what == NOTIFICATION_APPLICATION_PAUSED:
 		_capture_and_save()
 	elif what == NOTIFICATION_WM_CLOSE_REQUEST and not _closing:
 		_closing = true

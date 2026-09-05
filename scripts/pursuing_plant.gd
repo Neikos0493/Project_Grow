@@ -7,6 +7,18 @@ signal died(cell: Vector2i, position: Vector2)
 
 const GROW_TIME := 3.0
 const MAX_HEALTH := 3
+const PEA_SHEET := preload("res://image/Monster_pea/ball-Sheet.png")
+const PEA_WAIT_SHEET := preload("res://image/Monster_pea/ball-wait-Sheet.png")
+const PEA_FRAME_SIZE := Vector2i(24, 31)
+const PEA_JUMP_FRAME_COUNT := 7
+# Source frame numbers: left-to-right 1-6-5-4-5-6-1, right-to-left 1-2-3-4-3-2-1.
+const PEA_LEFT_FRAMES := [0, 1, 2, 3, 2, 1, 0]
+const PEA_RIGHT_FRAMES := [0, 5, 4, 3, 4, 5, 0]
+const PEA_WAIT_FRAME_SIZE := Vector2i(67, 49)
+const PEA_WAIT_FRAME_COUNT := 2
+const PEA_DISPLAY_SCALE := 2.0
+const PEA_COLLISION_RADIUS := 14.0
+const PEA_WAIT_CONTENT_OFFSET := Vector2(22.0, 3.0)
 const ATTACK_RANGE := 210.0
 const JUMP_DURATION := 0.55
 const JUMP_HEIGHT := 34.0
@@ -27,6 +39,7 @@ var jump_elapsed := 0.0
 var jump_cooldown_remaining := 0.0
 var jump_origin := Vector2.ZERO
 var jump_target := Vector2.ZERO
+var jump_faces_right := false
 var knockback_velocity := Vector2.ZERO
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map_world: MeadowWorld) -> void:
@@ -88,10 +101,13 @@ func _ready() -> void:
 	collision_mask = 1
 	var shape_node := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = 12.0
+	circle.radius = _get_collision_radius()
 	shape_node.shape = circle
 	add_child(shape_node)
 	queue_redraw()
+
+func _get_collision_radius() -> float:
+	return PEA_COLLISION_RADIUS
 
 func _physics_process(delta: float) -> void:
 	if dead:
@@ -122,6 +138,9 @@ func _start_jump(destination: Vector2) -> void:
 	jump_elapsed = 0.0
 	jump_origin = global_position
 	jump_target = destination
+	var horizontal_delta := destination.x - global_position.x
+	if absf(horizontal_delta) > 0.01:
+		jump_faces_right = horizontal_delta > 0.0
 	velocity = Vector2.ZERO
 	queue_redraw()
 
@@ -167,7 +186,6 @@ func _draw() -> void:
 	_draw_jumping_plant()
 
 func _draw_sprout() -> void:
-	draw_shadow_ellipse(Vector2(0, 8), Vector2(12, 5), Color(0.05, 0.1, 0.1, 0.28))
 	draw_line(Vector2(0, 7), Vector2(0, -8), Color("#24523a"), 4.0)
 	draw_circle(Vector2(-5, -7), 7.0, Color("#4d9b55"))
 	draw_circle(Vector2(5, -5), 7.0, Color("#5cb55e"))
@@ -176,19 +194,27 @@ func _draw_jumping_plant() -> void:
 	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0) if jumping else 0.0
 	var lift := sin(progress * PI) * JUMP_HEIGHT
 	var body_position := Vector2(0, -6 - lift)
-	var outline := Color("#26353b")
-	draw_shadow_ellipse(Vector2(0, 10), Vector2(15, 6), Color(0.05, 0.1, 0.1, 0.32))
-	draw_circle(body_position, 17.0, outline)
-	draw_circle(body_position, 14.0, Color("#4b9952"))
-	draw_circle(body_position + Vector2(-5, -3), 2.8, Color("#fff1bd"))
-	draw_circle(body_position + Vector2(5, -3), 2.8, Color("#fff1bd"))
-	draw_circle(body_position + Vector2(-5, -3), 1.3, outline)
-	draw_circle(body_position + Vector2(5, -3), 1.3, outline)
-	draw_colored_polygon(PackedVector2Array([
-		body_position + Vector2(-9, 5), body_position + Vector2(9, 5), body_position + Vector2(0, 11),
-	]), Color("#4a2632"))
+	var frame := 0
+	var texture := PEA_SHEET
+	var frame_size := PEA_FRAME_SIZE
 	if jumping:
-		draw_arc(body_position, 23.0, 0.0, TAU, 24, Color("#f3c969"), 2.0, true)
+		var frame_index := clampi(
+			int(progress * float(PEA_JUMP_FRAME_COUNT)),
+			0,
+			PEA_JUMP_FRAME_COUNT - 1
+		)
+		var frames: Array = PEA_RIGHT_FRAMES if jump_faces_right else PEA_LEFT_FRAMES
+		frame = int(frames[frame_index])
+	else:
+		frame = int(Time.get_ticks_msec() / 420) % PEA_WAIT_FRAME_COUNT
+		texture = PEA_WAIT_SHEET
+		frame_size = PEA_WAIT_FRAME_SIZE
+	var source := Rect2(frame * frame_size.x, 0, frame_size.x, frame_size.y)
+	var display_size := Vector2(frame_size) * PEA_DISPLAY_SCALE
+	var destination := Rect2(body_position - display_size * 0.5, display_size)
+	if not jumping:
+		destination.position += PEA_WAIT_CONTENT_OFFSET * PEA_DISPLAY_SCALE
+	draw_texture_rect_region(texture, destination, source)
 	for index in range(health):
 		draw_circle(body_position + Vector2(-8 + index * 8, -22), 2.2, Color("#f0d070"))
 

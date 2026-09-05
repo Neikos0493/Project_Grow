@@ -3,6 +3,7 @@ extends Control
 ## Drawn five-slot hotbar that stays fixed to the viewport.
 
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
+const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
 
 var inventory: MeadowInventory
 
@@ -89,9 +90,8 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_circle(center + Vector2(0, 2), 10.0, Color("#7ca9dc"))
 		draw_circle(center + Vector2(-3, -3), 3.0, Color("#d8f1ff"))
 	elif icon == "hoe":
-		draw_line(center + Vector2(-7, 10), center + Vector2(5, -8), Color("#a8754f"), 4.0)
-		draw_line(center + Vector2(1, -8), center + Vector2(11, -8), Color("#c6cbd0"), 4.0)
-		draw_line(center + Vector2(1, -8), center + Vector2(5, -1), Color("#c6cbd0"), 3.0)
+		var icon_size := Vector2(32.0, 32.0 * HOE_TEXTURE.get_height() / HOE_TEXTURE.get_width())
+		draw_texture_rect(HOE_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)
 	elif icon == "plant":
 		draw_line(center + Vector2(0, 10), center + Vector2(0, -5), Color("#24523a"), 3.0)
 		draw_circle(center + Vector2(-5, -5), 6.0, Color("#4d9b55"))

@@ -1,6 +1,6 @@
 class_name MeadowPlayer
 extends CharacterBody2D
-## Responsive movement, mouse-facing primary actions, and player health.
+## Responsive movement, direction-based actions, and player health.
 
 signal interaction_requested
 signal fire_requested(origin: Vector2, direction: Vector2)
@@ -11,6 +11,21 @@ const MOVE_SPEED := 150.0
 const MOVE_ACCELERATION := 720.0
 const MOVE_DECELERATION := 980.0
 const MAX_HEALTH := 5
+const CHARACTER_FRAME_COUNT := 4
+const CHARACTER_ANIMATION_FPS := 8.0
+
+const CHARACTER_SHEETS := {
+	"idle_down": ["res://image/Character/character-wait-Sheet.png", 22, 31],
+	"idle_up": ["res://image/Character/character-wait-back-Sheet.png", 22, 31],
+	"idle_left": ["res://image/Character/character-wait-left-Sheet.png", 22, 32],
+	"idle_right": ["res://image/Character/character-wait-right-Sheet.png", 22, 32],
+	"walk_down": ["res://image/Character/charcter-walk-Sheet.png", 22, 32],
+	"walk_up": ["res://image/Character/charcter-walk-back-Sheet.png", 22, 32],
+	"walk_left": ["res://image/Character/character-walk-left-Sheet.png", 21, 28],
+	"walk_right": ["res://image/Character/character-walk-right-Sheet.png", 21, 28],
+}
+
+@onready var character_sprite: AnimatedSprite2D = $CharacterSprite
 
 var controls_locked := false
 var facing := Vector2.DOWN
@@ -19,29 +34,79 @@ var dead := false
 
 func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	_build_character_animations()
+	_update_character_animation()
 	queue_redraw()
 	health_changed.emit(health, MAX_HEALTH)
 
 func _physics_process(delta: float) -> void:
 	if controls_locked or dead:
 		velocity = velocity.move_toward(Vector2.ZERO, MOVE_DECELERATION * delta)
-		_update_mouse_facing()
+		_update_character_animation()
 		return
 	var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if not Input.is_action_pressed("fire") and input_direction.length_squared() > 0.01:
+		_set_facing(input_direction)
+	elif Input.is_action_pressed("fire"):
+		_update_pointer_facing()
 	var target_velocity := input_direction * MOVE_SPEED
 	var response := MOVE_ACCELERATION if input_direction.length_squared() > 0.0 else MOVE_DECELERATION
 	velocity = velocity.move_toward(target_velocity, response * delta)
 	move_and_slide()
-	_update_mouse_facing()
+	_update_character_animation()
 
-func _update_mouse_facing() -> void:
-	var aim := get_global_mouse_position() - global_position
-	if aim.length_squared() < 0.01:
+func _set_facing(direction: Vector2) -> void:
+	if direction.length_squared() < 0.01:
 		return
-	var next_facing := aim.normalized()
-	if not facing.is_equal_approx(next_facing):
-		facing = next_facing
-		queue_redraw()
+	var next_facing := direction.normalized()
+	if facing.is_equal_approx(next_facing):
+		return
+	facing = next_facing
+	_update_character_animation()
+	queue_redraw()
+
+func set_attack_facing(direction: Vector2) -> void:
+	_set_facing(direction)
+
+func _update_pointer_facing() -> void:
+	var pointer_direction := get_global_mouse_position() - global_position
+	if pointer_direction.length_squared() > 0.01:
+		_set_facing(pointer_direction)
+
+func _build_character_animations() -> void:
+	var sprite_frames := SpriteFrames.new()
+	sprite_frames.remove_animation("default")
+	for animation_name in CHARACTER_SHEETS:
+		var sheet_data: Array = CHARACTER_SHEETS[animation_name]
+		var texture := load(sheet_data[0]) as Texture2D
+		if texture == null:
+			push_error("Could not load character sheet: %s" % sheet_data[0])
+			continue
+		sprite_frames.add_animation(animation_name)
+		sprite_frames.set_animation_speed(animation_name, CHARACTER_ANIMATION_FPS)
+		sprite_frames.set_animation_loop(animation_name, true)
+		for frame_index in range(CHARACTER_FRAME_COUNT):
+			var atlas := AtlasTexture.new()
+			atlas.atlas = texture
+			atlas.region = Rect2(frame_index * sheet_data[1], 0, sheet_data[1], sheet_data[2])
+			sprite_frames.add_frame(animation_name, atlas)
+	character_sprite.sprite_frames = sprite_frames
+
+func _update_character_animation() -> void:
+	if not is_instance_valid(character_sprite) or character_sprite.sprite_frames == null:
+		return
+	var direction := _cardinal_direction(facing)
+	var moving := velocity.length_squared() > 20.0 and not controls_locked and not dead
+	var animation_name := ("walk_" if moving else "idle_") + direction
+	if character_sprite.animation != animation_name:
+		character_sprite.play(animation_name)
+	elif not character_sprite.is_playing():
+		character_sprite.play()
+
+func _cardinal_direction(direction: Vector2) -> String:
+	if absf(direction.x) > absf(direction.y):
+		return "right" if direction.x > 0.0 else "left"
+	return "down" if direction.y > 0.0 else "up"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if dead:
@@ -51,7 +116,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		interaction_requested.emit()
 		get_viewport().set_input_as_handled()
 		return
-	if not controls_locked and not dead and event.is_action_pressed("fire") and (key_event == null or not key_event.echo):
+	# Main handles normal gameplay clicks so it can support held weapons. Keep
+	# this fallback for standalone use of the player scene.
+	if not controls_locked and event.is_action_pressed("fire") and (key_event == null or not key_event.echo):
 		var aim := get_global_mouse_position() - global_position
 		if aim.length_squared() > 0.01:
 			fire_requested.emit(global_position, aim.normalized())
@@ -61,6 +128,7 @@ func restore_state(saved_health: int) -> void:
 	dead = health == 0
 	controls_locked = dead
 	velocity = Vector2.ZERO
+	_update_character_animation()
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
 
@@ -73,6 +141,7 @@ func take_damage(amount: int = 1) -> bool:
 	if health == 0:
 		dead = true
 		controls_locked = true
+		_update_character_animation()
 		died.emit()
 	return true
 
@@ -84,24 +153,14 @@ func respawn_at(spawn_global_position: Vector2) -> bool:
 	health = MAX_HEALTH
 	dead = false
 	controls_locked = false
+	_update_character_animation()
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
 	return true
 
 func _draw() -> void:
-	draw_shadow_ellipse(Vector2(0, 8), Vector2(10, 4), Color(0.05, 0.1, 0.1, 0.3))
-	var triangle := PackedVector2Array([
-		Vector2(0, -12),
-		Vector2(9, 9),
-		Vector2(0, 6),
-		Vector2(-9, 9),
-	])
-	var rotation := facing.angle() + PI / 2.0
-	var rotated := PackedVector2Array()
-	for point in triangle:
-		rotated.append(point.rotated(rotation))
-	draw_colored_polygon(rotated, Color("#f3c969"))
-	draw_polyline(PackedVector2Array([rotated[0], rotated[1], rotated[2], rotated[3], rotated[0]]), Color("#26353b"), 2.0, true)
+	# Keep the shadow on the ground while the sprite is visually lifted above it.
+	draw_shadow_ellipse(Vector2(0, 13), Vector2(14, 5), Color(0.05, 0.1, 0.1, 0.34))
 
 func draw_shadow_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()

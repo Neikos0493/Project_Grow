@@ -76,6 +76,12 @@ script = ExtResource("3_player")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
 shape = SubResource("CircleShape2D_player")
 
+[node name="CharacterSprite" type="AnimatedSprite2D" parent="Player"]
+z_index = 1
+position = Vector2(0, -4)
+scale = Vector2(1.5, 1.5)
+centered = true
+
 [node name="MeleeWeapon" type="Node2D" parent="Player"]
 z_index = 1
 script = ExtResource("9_melee_weapon")
