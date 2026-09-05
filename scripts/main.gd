@@ -99,6 +99,7 @@ func _ready() -> void:
 	inventory_hud.set_inventory(inventory)
 	inventory.inventory_changed.connect(_refresh_inventory)
 	inventory.selection_changed.connect(_refresh_inventory)
+	GameState.restore_inventory(inventory)
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
 	radar_panel.hide()
@@ -671,4 +672,5 @@ func _show_toast(message: String) -> void:
 	_toast_tween.tween_callback(toast_box.hide)
 
 func _exit_tree() -> void:
+	GameState.capture_inventory(inventory)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)

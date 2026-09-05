@@ -18,6 +18,10 @@ config/name="Meadow Prototype"
 run/main_scene="res://MainMenu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
+[autoload]
+
+GameState="*res://scripts/game_state.gd"
+
 [display]
 
 window/size/viewport_width=960

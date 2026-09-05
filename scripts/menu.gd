@@ -38,6 +38,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_start_game()
 
 func _start_game() -> void:
+	GameState.clear_inventory()
 	status_label.text = "正在进入草甸..." if language == "zh" else "LOADING THE MEADOW..."
 	start_button.disabled = true
 	await get_tree().create_timer(0.16).timeout
