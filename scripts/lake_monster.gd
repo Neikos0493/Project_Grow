@@ -170,13 +170,19 @@ func _attack() -> void:
 		else:
 			_change_state("chase")
 
+func _grid_direction(direction: Vector2) -> Vector2:
+	if direction.length_squared() < 0.01:
+		return Vector2.RIGHT
+	if absf(direction.x) >= absf(direction.y):
+		return Vector2(signf(direction.x), 0.0)
+	return Vector2(0.0, signf(direction.y))
+
 func _begin_charge() -> void:
-	var offset := target.global_position - global_position
 	var offset := target.global_position - global_position
 	if offset.length_squared() < 0.01:
 		offset = facing
-	var map_offset := world.global_direction_to_map(offset).normalized()
-	var map_charge_direction := _grid_direction(map_offset)
+	var map_offset: Vector2 = world.global_direction_to_map(offset).normalized()
+	var map_charge_direction: Vector2 = _grid_direction(map_offset)
 	charge_direction = world.map_direction_to_global(map_charge_direction).normalized()
 	facing = charge_direction
 	var trigger_cell := world.world_to_cell(world.to_local(target.global_position))

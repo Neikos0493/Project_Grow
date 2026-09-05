@@ -132,7 +132,7 @@ func _fire_vine_skill() -> void:
 	queue_redraw()
 
 func get_damage_number_position() -> Vector2:
-	return _root_position() + Vector2(0, -76)
+	return global_position + Vector2(0, -76)
 
 func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or amount <= 0:
