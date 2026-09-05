@@ -487,9 +487,13 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			plant.projectile_requested.connect(_on_plant_projectile_requested)
 			plant.died.connect(_on_plant_died)
 			plant.matured.connect(_on_plant_matured)
-			plant_entities[seed_cell] = plant
+			plant_entities[seed_cell] = int(plant_entities.get(seed_cell, 0)) + 1
 			if not inventory.consume_selected():
-				plant_entities.erase(seed_cell)
+				var plant_count := int(plant_entities.get(seed_cell, 0)) - 1
+				if plant_count <= 0:
+					plant_entities.erase(seed_cell)
+				else:
+					plant_entities[seed_cell] = plant_count
 				world.set_farm_tilled(seed_cell)
 				plant.queue_free()
 				return
@@ -520,13 +524,16 @@ func _on_plant_projectile_requested(origin: Vector2, direction: Vector2) -> void
 	_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#d66b58"))
 
 func _on_plant_matured(cell: Vector2i) -> void:
-	world.set_farm_mature(cell)
+	world.set_farm_tilled(cell)
 
 func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
-	if not plant_entities.has(cell):
+	var plant_count := int(plant_entities.get(cell, 0))
+	if plant_count <= 0:
 		return
-	plant_entities.erase(cell)
-	world.clear_farm(cell)
+	if plant_count == 1:
+		plant_entities.erase(cell)
+	else:
+		plant_entities[cell] = plant_count - 1
 	world.add_drop(position, PLANT, 1, 0)
 	_show_toast(_msg("The plant fell. Pick it up and sell it at the shop.", "植物倒下了，拾取后可以带到商店出售。"))
 
