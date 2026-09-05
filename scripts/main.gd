@@ -52,6 +52,8 @@ const QUEST_DEFEATED := 4
 @onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
 @onready var dialogue_box: MeadowDialogueBox = $HUD/DialogueBox
 
+@export var arrival_from_travel := false
+
 var coins := STARTING_COINS
 var language := "en"
 var shop_open := false
@@ -120,7 +122,7 @@ func _ready() -> void:
 	_refresh_inventory()
 	_refresh_coins()
 	_show_toast(_msg("Explore the meadow. Find the mailbox.", "探索草甸，找到邮箱。"))
-	if world.level_variant == "pond":
+	if world.level_variant == "pond" or arrival_from_travel:
 		call_deferred("_play_arrival")
 
 func _play_arrival() -> void:
@@ -370,7 +372,11 @@ func _on_radar_point_selected(point_id: int) -> void:
 		1:
 			_close_radar()
 			if world.level_variant == "pond":
-				get_tree().change_scene_to_file("res://Main.tscn")
+				player.controls_locked = true
+				var return_tween := create_tween().set_parallel(true)
+				return_tween.tween_property(world, "ship_transition_offset", Vector2(0, -220), 1.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				return_tween.tween_method(world.set_ship_flame_length, 12.0, 48.0, 0.55)
+				travel_transition.play_departure("res://MainReturn.tscn")
 			else:
 				_show_toast(_msg("Greenmeadow is already in range.", "绿野就在附近。"))
 		2:

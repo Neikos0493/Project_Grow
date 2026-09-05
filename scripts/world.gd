@@ -188,7 +188,7 @@ func _apply_pond_layout() -> void:
 	_set_rock_cluster([Vector2i(18, 19), Vector2i(19, 19), Vector2i(20, 19)])
 
 func get_player_start_cell() -> Vector2i:
-	return Vector2i(14, 13) if level_variant == "pond" else PLAYER_START_CELL
+	return PLAYER_START_CELL
 
 func get_level_title() -> String:
 	if level_variant == "pond":
