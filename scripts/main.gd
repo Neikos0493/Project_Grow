@@ -484,6 +484,7 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			plants.add_child(plant)
 			plant.global_position = world.cell_to_world(seed_cell)
 			plant.setup(seed_cell, player)
+			plant.projectile_requested.connect(_on_plant_projectile_requested)
 			plant.died.connect(_on_plant_died)
 			plant.matured.connect(_on_plant_matured)
 			plant_entities[seed_cell] = plant
@@ -492,7 +493,7 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				world.set_farm_tilled(seed_cell)
 				plant.queue_free()
 				return
-			_show_toast(_msg("Seed planted. It becomes a hunter in 3 seconds.", "种子已种下，3 秒后会变成追击者。"))
+			_show_toast(_msg("Seed planted. It will mature in 3 seconds.", "种子已种下，3 秒后成熟。"))
 		BLUE_SEED:
 			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
 			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
@@ -513,8 +514,13 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, da
 	projectiles.add_child(projectile)
 	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint)
 
+func _on_plant_projectile_requested(origin: Vector2, direction: Vector2) -> void:
+	if player.dead:
+		return
+	_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#d66b58"))
+
 func _on_plant_matured(cell: Vector2i) -> void:
-	world.clear_farm(cell)
+	world.set_farm_mature(cell)
 
 func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
 	if not plant_entities.has(cell):
