@@ -60,6 +60,7 @@ corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
 
 [node name="Main" type="Node2D"]
+process_mode = 3
 script = ExtResource("1_main")
 
 [node name="World" type="Node2D" parent="."]
@@ -470,6 +471,76 @@ grow_vertical = 2
 z_index = 200
 mouse_filter = 2
 script = ExtResource("10_travel_transition")
+
+[node name="PauseMenu" type="Control" parent="HUD"]
+process_mode = 3
+visible = false
+z_index = 150
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Dim" type="ColorRect" parent="HUD/PauseMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.016, 0.035, 0.043, 0.78)
+
+[node name="Panel" type="ColorRect" parent="HUD/PauseMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -170.0
+offset_top = -120.0
+offset_right = 170.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0.055, 0.11, 0.13, 0.98)
+
+[node name="Title" type="Label" parent="HUD/PauseMenu/Panel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 28.0
+offset_right = 320.0
+offset_bottom = 66.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 26
+text = "PAUSED"
+horizontal_alignment = 1
+
+[node name="ResumeButton" type="Button" parent="HUD/PauseMenu/Panel"]
+layout_mode = 0
+offset_left = 55.0
+offset_top = 94.0
+offset_right = 275.0
+offset_bottom = 140.0
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 16
+text = "RESUME"
+
+[node name="MenuButton" type="Button" parent="HUD/PauseMenu/Panel"]
+layout_mode = 0
+offset_left = 55.0
+offset_top = 154.0
+offset_right = 275.0
+offset_bottom = 200.0
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 16
+text = "MAIN MENU"
 
 [node name="CursorLayer" type="CanvasLayer" parent="."]
 layer = 20
