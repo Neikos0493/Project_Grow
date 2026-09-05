@@ -6,7 +6,7 @@ var save_path := "user://autosave.json"
 var temp_path := "user://autosave.json.tmp"
 var backup_path := "user://autosave.json.bak"
 const MAX_SAVE_BYTES := 4 * 1024 * 1024
-const MAX_MAP_ENTRIES := 2
+const MAX_MAP_ENTRIES := 3
 const MAX_FARM_TILES := 960
 const MAX_WATER_GROWTH := 64
 const MAX_PERMANENT_GRASS := 960
@@ -16,7 +16,7 @@ const MAX_COINS := 999999999
 const MAX_HEALTH := 5
 const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
-const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
+const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore", &"world_tree"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
 const KNOWN_ITEM_IDS := {
 	"hoe": 1,
@@ -48,6 +48,9 @@ var last_load_used_backup := false
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
 var world_tree_blessing_unlocked := false
+var world_tree_map_unlocked := false
+var energy := 0
+var world_tree_energy := 0
 
 func _ready() -> void:
 	if not session_initialized:
@@ -68,6 +71,9 @@ func reset_session() -> void:
 	orange_seed_granted = false
 	green_plantings_since_mutation = 0
 	world_tree_blessing_unlocked = false
+	world_tree_map_unlocked = false
+	energy = 0
+	world_tree_energy = 0
 
 func ensure_session() -> void:
 	if not session_initialized:
@@ -207,6 +213,9 @@ func _build_save_data() -> Dictionary:
 			"orange_seed_granted": orange_seed_granted,
 			"green_plantings_since_mutation": green_plantings_since_mutation,
 			"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+			"world_tree_map_unlocked": world_tree_map_unlocked,
+			"energy": energy,
+			"world_tree_energy": world_tree_energy,
 			"unlocked_map_ids": unlocked,
 		},
 		"maps": maps,
@@ -275,8 +284,15 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 	if String(&"greenmeadow") not in unlocked:
 		unlocked.append(String(&"greenmeadow"))
 	var world_tree_blessing_unlocked := bool(data.get("world_tree_blessing_unlocked", false))
+	var world_tree_map_unlocked := bool(data.get("world_tree_map_unlocked", false))
 	if not world_tree_blessing_unlocked:
 		unlocked.erase(String(&"sunset_shore"))
+	elif String(&"sunset_shore") not in unlocked:
+		unlocked.append(String(&"sunset_shore"))
+	if not world_tree_map_unlocked:
+		unlocked.erase(String(&"world_tree"))
+	elif String(&"world_tree") not in unlocked:
+		unlocked.append(String(&"world_tree"))
 	return {
 		"inventory": normalized_inventory,
 		"coins": clampi(int(data.get("coins", 9999)), 0, MAX_COINS),
@@ -285,6 +301,9 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"orange_seed_granted": bool(data.get("orange_seed_granted", false)),
 		"green_plantings_since_mutation": clampi(int(data.get("green_plantings_since_mutation", 0)), 0, 9),
 		"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+		"world_tree_map_unlocked": world_tree_map_unlocked,
+		"energy": clampi(int(data.get("energy", 0)), 0, 100),
+		"world_tree_energy": clampi(int(data.get("world_tree_energy", 0)), 0, 100),
 		"unlocked_map_ids": unlocked,
 	}
 
@@ -688,6 +707,9 @@ func _apply_valid_save(data: Dictionary) -> void:
 	orange_seed_granted = bool(global_data.get("orange_seed_granted", false))
 	green_plantings_since_mutation = int(global_data.get("green_plantings_since_mutation", 0))
 	world_tree_blessing_unlocked = bool(global_data.get("world_tree_blessing_unlocked", false))
+	world_tree_map_unlocked = bool(global_data.get("world_tree_map_unlocked", false))
+	energy = clampi(int(global_data.get("energy", 0)), 0, 100)
+	world_tree_energy = clampi(int(global_data.get("world_tree_energy", 0)), 0, 100)
 	unlocked_map_ids.clear()
 	for value in global_data["unlocked_map_ids"]:
 		unlocked_map_ids.append(StringName(str(value)))

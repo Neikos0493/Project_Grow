@@ -65,7 +65,7 @@ func _apply_point_state() -> void:
 	_set_point_state(tree_point, WORLD_TREE_ID)
 
 func _set_point_state(point: Button, map_id: StringName) -> void:
-	var unlocked := map_id == WORLD_TREE_ID or map_id in unlocked_map_ids
+	var unlocked := map_id in unlocked_map_ids
 	point.disabled = not unlocked
 	point.modulate = Color(1.0, 1.0, 1.0, 0.55 if not unlocked else 1.0)
 	if map_id == current_map_id:

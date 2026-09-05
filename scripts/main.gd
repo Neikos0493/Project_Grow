@@ -48,6 +48,7 @@ const AUTO_FIRE_CADENCE := {
 @onready var inventory_sell_tooltip: Label = $HUD/InventorySellTooltip
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
+@onready var energy_label: Label = $HUD/TopBar/EnergyLabel
 @onready var boss_bar: Control = $HUD/BossBar
 @onready var boss_title: Label = $HUD/BossBar/Title
 @onready var boss_fill: ColorRect = $HUD/BossBar/Track/Fill
@@ -139,6 +140,7 @@ func _ready() -> void:
 	_update_death_ui_from_player()
 	_refresh_inventory()
 	_refresh_coins()
+	_refresh_energy()
 	_apply_game_language()
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	if not player.dead:
@@ -566,28 +568,49 @@ func _open_world_tree_dialogue() -> void:
 	prompt_box.hide()
 	_clear_inventory_sell_tooltip()
 	var lines: Array[String] = []
-	if game_state.world_tree_blessing_unlocked:
-		lines = [_msg(
-			"The World Tree has already opened the path to the next planet.",
-			"世界树已经为你打开了前往下一个星球的道路。"
-		)]
-	elif inventory.has_item(QUEST_ITEM_1):
-		if inventory.remove_item(QUEST_ITEM_1, 1):
+	var relic_delivered := false
+	var energy_delivered := 0
+	if not game_state.world_tree_blessing_unlocked and inventory.has_item(QUEST_ITEM_1):
+		relic_delivered = inventory.remove_item(QUEST_ITEM_1, 1)
+		if relic_delivered:
 			game_state.world_tree_blessing_unlocked = true
 			if &"sunset_shore" not in game_state.unlocked_map_ids:
 				game_state.unlocked_map_ids.append(&"sunset_shore")
-			_mark_save_dirty()
-			lines = [_msg(
-				"The relic awakens the World Tree. The next planet is now within reach.",
-				"任务遗物唤醒了世界树。下一个星球现在已经可以抵达。"
-			)]
+			lines.append(_msg(
+				"The relic awakens the World Tree. Sunset Shore is now reachable.",
+				"任务遗物唤醒了世界树，日落海岸现在已经可以抵达。"
+			))
+	if not game_state.world_tree_map_unlocked and game_state.energy > 0:
+		energy_delivered = game_state.energy
+		game_state.energy = 0
+		game_state.world_tree_energy = mini(100, game_state.world_tree_energy + energy_delivered)
+		if game_state.world_tree_energy >= 100:
+			game_state.world_tree_map_unlocked = true
+			if &"world_tree" not in game_state.unlocked_map_ids:
+				game_state.unlocked_map_ids.append(&"world_tree")
+			lines.append(_msg(
+				"The World Tree reaches 100 energy. Its inner realm is now open on the radar.",
+				"世界树能量达到 100 点，内在领域现在已在雷达上开放。"
+			))
 		else:
-			lines = [_msg("The relic could not be handed over.", "任务遗物无法交付。")]
-	else:
-		lines = [_msg(
-			"The World Tree is silent. Defeat this planet's boss and bring its relic here.",
-			"世界树仍然沉默。先击败本层 Boss，再把它掉落的任务遗物带到这里。"
-		)]
+			lines.append(_msg(
+				"The World Tree accepted %d energy. Bring more Boss energy to reach 100." % energy_delivered,
+				"世界树吸收了 %d 点能量。继续收集 Boss 能量，直到达到 100 点。" % energy_delivered
+			))
+	if lines.is_empty():
+		if game_state.world_tree_map_unlocked:
+			lines.append(_msg(
+				"The World Tree is fully charged. Its inner realm is open on the radar.",
+				"世界树已经充满能量，内在领域已在雷达上开放。"
+			))
+		elif game_state.energy <= 0:
+			lines.append(_msg(
+				"Defeat Bosses and bring their energy here. Bring the lake relic too if Sunset Shore is still locked.",
+				"击败 Boss 后把能量带到这里。如果日落海岸尚未解锁，也要带来湖怪遗物。"
+			))
+	_refresh_energy()
+	if relic_delivered or energy_delivered > 0:
+		_mark_save_dirty()
 	dialogue_box.open_dialogue(
 		_msg("World Tree", "世界树"),
 		lines,
@@ -641,18 +664,14 @@ func _close_radar() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 
 func _on_radar_point_selected(map_id: StringName) -> void:
-	if map_id == &"world_tree":
-		_close_radar()
-		_show_toast(_msg("World Tree signal locked. Keep exploring the meadow.", "世界树信号已锁定，继续探索草甸吧。"))
-		return
 	if map_id == world.get_map_id():
 		_close_radar()
 		_show_toast(_msg("This destination is already in range.", "当前已在此目的地。"))
 		return
 	if map_id not in game_state.unlocked_map_ids:
 		_show_toast(_msg(
-			"Defeat this planet's boss, then give its relic to the World Tree.",
-			"请先击败本层 Boss，再把掉落的任务遗物交给世界树。"
+			"Defeat Bosses, deliver their energy to the World Tree, and reach 100 energy.",
+			"请击败 Boss，把能量交给世界树，并累计到 100 点。"
 		))
 		return
 	await _travel_to(map_id)
@@ -748,6 +767,9 @@ func _capture_game_state_memory() -> Dictionary:
 		"map_states": game_state.map_states.duplicate(true),
 		"entry_mode": game_state.entry_mode,
 		"world_tree_blessing_unlocked": game_state.world_tree_blessing_unlocked,
+		"world_tree_map_unlocked": game_state.world_tree_map_unlocked,
+		"energy": game_state.energy,
+		"world_tree_energy": game_state.world_tree_energy,
 	}
 
 func _restore_game_state_memory(state: Dictionary) -> void:
@@ -763,6 +785,10 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 	game_state.map_states = state.get("map_states", {}).duplicate(true)
 	game_state.entry_mode = str(state.get("entry_mode", game_state.entry_mode))
 	game_state.world_tree_blessing_unlocked = bool(state.get("world_tree_blessing_unlocked", game_state.world_tree_blessing_unlocked))
+	game_state.world_tree_map_unlocked = bool(state.get("world_tree_map_unlocked", game_state.world_tree_map_unlocked))
+	game_state.energy = clampi(int(state.get("energy", game_state.energy)), 0, 100)
+	game_state.world_tree_energy = clampi(int(state.get("world_tree_energy", game_state.world_tree_energy)), 0, 100)
+	_refresh_energy()
 
 func _rollback_travel(old_map_id: StringName, old_snapshot: Dictionary, old_game_state: Dictionary, message: String) -> void:
 	_restore_game_state_memory(old_game_state)
@@ -1358,6 +1384,7 @@ func _on_saxaul_health_changed(current: int, maximum: int) -> void:
 
 func _on_saxaul_died(cell: Vector2i, _global_position: Vector2) -> void:
 	boss_bar.hide()
+	_award_boss_energy()
 	if not is_instance_valid(saxaul_boss) or saxaul_boss.dead:
 		_prepare_saxaul_spread(cell)
 		_mark_save_dirty()
@@ -1483,6 +1510,7 @@ func _on_lake_monster_died(global_position: Vector2) -> void:
 	if quest_state != QUEST_MONSTER_ACTIVE:
 		return
 	lake_monster = null
+	_award_boss_energy()
 	var reward_result := _grant_quest_relic(world.to_local(global_position))
 	if reward_result.is_empty():
 		_show_toast(_msg("The quest relic could not be secured.", "无法安全保存任务遗物。"))
@@ -1598,6 +1626,21 @@ func _respawn_player() -> void:
 	camera.reset_smoothing()
 	_mark_save_dirty()
 	_show_toast(world.get_respawn_message())
+
+func _award_boss_energy() -> void:
+	game_state.energy = mini(100, game_state.energy + 50)
+	_refresh_energy()
+	_mark_save_dirty()
+	_show_toast(_msg(
+		"Boss defeated. You gained 50 energy.",
+		"Boss 已击败，获得 50 点能量。"
+	))
+
+func _refresh_energy() -> void:
+	energy_label.text = _msg(
+		"ENERGY  %d/100  TREE  %d/100" % [game_state.energy, game_state.world_tree_energy],
+		"能量  %d/100  世界树  %d/100" % [game_state.energy, game_state.world_tree_energy]
+	)
 
 func _refresh_coins() -> void:
 	coin_label.text = _msg("COINS  %d" % coins, "金币  %d" % coins)
