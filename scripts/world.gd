@@ -108,12 +108,27 @@ func _prop_label(kind: String) -> String:
 		"lookout": return "眺望世界树"
 		"spaceship": return "打开导航雷达"
 		"lake_npc": return "与湖之守望者交谈"
+		"ranger": return "与护林员交谈"
 	return "互动"
 
 func _ready() -> void:
+	_configure_level_props()
 	_generate_map()
 	_create_collisions()
 	queue_redraw()
+
+func _configure_level_props() -> void:
+	if level_variant != "pond":
+		return
+	for index in range(props.size() - 1, -1, -1):
+		if str(props[index].get("kind", "")) == "lake_npc":
+			props.remove_at(index)
+	props.append({
+		"cell": Vector2i(8, 8),
+		"kind": "ranger",
+		"label": "Talk to the ranger",
+		"used": false,
+	})
 
 func _generate_map() -> void:
 	cells.clear()
@@ -767,15 +782,17 @@ func _draw_prop(prop: Dictionary) -> void:
 			else:
 				draw_line(center + Vector2(-8, -7), center + Vector2(8, 7), Color("#d4a666"), 2.0)
 				draw_line(center + Vector2(8, -7), center + Vector2(-8, 7), Color("#d4a666"), 2.0)
-		"lake_npc":
+		"ranger":
 			_draw_flat_ellipse(center + Vector2(0, 10), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
 			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
-			draw_colored_polygon(PackedVector2Array([
-				center + Vector2(-13, -7), center + Vector2(0, -21), center + Vector2(13, -7),
-			]), Color("#315c70"))
-			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#315c70"), 8.0)
-			draw_line(center + Vector2(6, 3), center + Vector2(13, 13), Color("#8b633f"), 2.0)
-			draw_circle(center + Vector2(15, 14), 3.0, Color("#6fcfe1"))
+			draw_rect(Rect2(center + Vector2(-13, -13), Vector2(26, 7)), Color("#b56b3b"), true)
+			draw_rect(Rect2(center + Vector2(-10, -18), Vector2(20, 7)), Color("#b56b3b"), true)
+			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#3e7650"), 8.0)
+			draw_line(center + Vector2(-5, 4), center + Vector2(-13, 14), Color("#3e7650"), 3.0)
+			draw_line(center + Vector2(5, 4), center + Vector2(13, 14), Color("#3e7650"), 3.0)
+			draw_line(center + Vector2(8, 7), center + Vector2(14, -3), Color("#75503b"), 2.0)
+			draw_circle(center + Vector2(14, -4), 3.0, Color("#d9e2cf"))
+			return
 		"lookout":
 			# A small marker gives the player a readable arrival point.
 			draw_line(center + Vector2(0, 10), center + Vector2(0, -14), Color("#5a4938"), 3.0)
@@ -922,6 +939,8 @@ func interact(origin: Vector2, facing: Vector2) -> String:
 			return "导航雷达已准备就绪。" if chinese else "Navigation radar ready."
 		"lake_npc":
 			return "Lake keeper: Bring me one mature plant and I will give you a blue seed." if not chinese else "湖之守望者：带一株成熟植物来，我会给你蓝色种子。"
+		"ranger":
+			return "护林员：欢迎来到日落海岸。" if chinese else "Ranger: Welcome to Sunset Shore."
 		"crate":
 			if target["used"]:
 				return "木箱已经空了。" if chinese else "The crate is empty."
