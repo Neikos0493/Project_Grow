@@ -1,27 +1,34 @@
 class_name MeadowPursuingPlant
 extends CharacterBody2D
-## Independent melee plant enemy for future encounters outside the seed-growing system.
+## Seed-grown enemy that attacks only by leaping at a nearby player position.
 
-signal died(position: Vector2)
+signal matured(cell: Vector2i)
+signal died(cell: Vector2i, position: Vector2)
 
+const GROW_TIME := 3.0
 const MAX_HEALTH := 3
-const ALERT_RANGE := 210.0
-const MOVE_SPEED := 74.0
-const BITE_RANGE := 27.0
-const BITE_DAMAGE := 1
-const BITE_WINDUP := 0.28
-const BITE_COOLDOWN := 1.05
+const ATTACK_RANGE := 210.0
+const JUMP_DURATION := 0.34
+const JUMP_HEIGHT := 34.0
+const HIT_RANGE := 28.0
+const JUMP_DAMAGE := 1
+const JUMP_COOLDOWN := 1.1
 
+var cell := Vector2i.ZERO
 var target: MeadowPlayer
 var health := MAX_HEALTH
-var alerted := false
+var age := 0.0
+var mature := false
 var dead := false
-var bite_windup_remaining := 0.0
-var bite_cooldown_remaining := 0.0
+var jumping := false
+var jump_elapsed := 0.0
+var jump_cooldown_remaining := 0.0
+var jump_origin := Vector2.ZERO
+var jump_target := Vector2.ZERO
 var knockback_velocity := Vector2.ZERO
-var walk_time := 0.0
 
-func setup(player_target: MeadowPlayer) -> void:
+func setup(plant_cell: Vector2i, player_target: MeadowPlayer) -> void:
+	cell = plant_cell
 	target = player_target
 	queue_redraw()
 
@@ -38,49 +45,55 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
-	if knockback_velocity.length_squared() > 0.01:
+	if knockback_velocity.length_squared() > 0.01 and not jumping:
 		global_position += knockback_velocity * delta
 		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 220.0 * delta)
+	age += delta
+	if not mature:
+		if age >= GROW_TIME:
+			mature = true
+			matured.emit(cell)
+			queue_redraw()
+		return
 	if not is_instance_valid(target) or target.dead:
 		velocity = Vector2.ZERO
 		return
-	walk_time += delta
-	bite_cooldown_remaining = maxf(0.0, bite_cooldown_remaining - delta)
-	if not alerted and global_position.distance_to(target.global_position) <= ALERT_RANGE:
-		alerted = true
-		queue_redraw()
-	if not alerted:
-		velocity = Vector2.ZERO
+	if jumping:
+		_update_jump(delta)
 		return
-	var target_offset := target.global_position - global_position
-	var target_distance := target_offset.length()
-	if bite_windup_remaining > 0.0:
-		bite_windup_remaining -= delta
-		velocity = Vector2.ZERO
-		if bite_windup_remaining <= 0.0 and target_distance <= BITE_RANGE + 8.0:
-			target.take_damage(BITE_DAMAGE)
-			bite_cooldown_remaining = BITE_COOLDOWN
+	jump_cooldown_remaining = maxf(0.0, jump_cooldown_remaining - delta)
+	if jump_cooldown_remaining <= 0.0 and global_position.distance_to(target.global_position) <= ATTACK_RANGE:
+		_start_jump(target.global_position)
+	queue_redraw()
+
+func _start_jump(destination: Vector2) -> void:
+	jumping = true
+	jump_elapsed = 0.0
+	jump_origin = global_position
+	jump_target = destination
+	velocity = Vector2.ZERO
+	queue_redraw()
+
+func _update_jump(delta: float) -> void:
+	jump_elapsed += delta
+	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0)
+	global_position = jump_origin.lerp(jump_target, progress)
+	if progress < 1.0:
 		queue_redraw()
 		return
-	if target_distance <= BITE_RANGE and bite_cooldown_remaining <= 0.0:
-		bite_windup_remaining = BITE_WINDUP
-		velocity = Vector2.ZERO
-		queue_redraw()
-		return
-	if target_distance > BITE_RANGE:
-		velocity = target_offset.normalized() * MOVE_SPEED
-		move_and_slide()
-	else:
-		velocity = Vector2.ZERO
+	jumping = false
+	jump_cooldown_remaining = JUMP_COOLDOWN
+	if is_instance_valid(target) and not target.dead and global_position.distance_to(target.global_position) <= HIT_RANGE:
+		target.take_damage(JUMP_DAMAGE)
 	queue_redraw()
 
 func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
-	if dead or direction.length_squared() < 0.01:
+	if dead or jumping or direction.length_squared() < 0.01:
 		return
 	knockback_velocity = direction.normalized() * maxf(0.0, strength)
 
 func take_damage(amount: int = 1) -> bool:
-	if dead or amount <= 0:
+	if dead or not mature or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
 	queue_redraw()
@@ -89,33 +102,41 @@ func take_damage(amount: int = 1) -> bool:
 	dead = true
 	velocity = Vector2.ZERO
 	collision_layer = 0
-	died.emit(global_position)
+	died.emit(cell, global_position)
 	queue_free()
 	return true
 
 func _draw() -> void:
-	var bob := sin(walk_time * 11.0) * 1.5 if velocity.length_squared() > 1.0 else 0.0
-	var body_position := Vector2(0, -6 + bob)
+	if not mature:
+		_draw_sprout()
+		return
+	_draw_jumping_plant()
+
+func _draw_sprout() -> void:
+	draw_shadow_ellipse(Vector2(0, 8), Vector2(12, 5), Color(0.05, 0.1, 0.1, 0.28))
+	draw_line(Vector2(0, 7), Vector2(0, -8), Color("#24523a"), 4.0)
+	draw_circle(Vector2(-5, -7), 7.0, Color("#4d9b55"))
+	draw_circle(Vector2(5, -5), 7.0, Color("#5cb55e"))
+
+func _draw_jumping_plant() -> void:
+	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0) if jumping else 0.0
+	var lift := sin(progress * PI) * JUMP_HEIGHT
+	var body_position := Vector2(0, -6 - lift)
 	var outline := Color("#26353b")
-	var body_color := Color("#4b9952") if alerted else Color("#5caa5d")
-	var windup_ratio := bite_windup_remaining / BITE_WINDUP if BITE_WINDUP > 0.0 else 0.0
 	draw_shadow_ellipse(Vector2(0, 10), Vector2(15, 6), Color(0.05, 0.1, 0.1, 0.32))
-	for x_offset in [-8.0, 8.0]:
-		draw_line(Vector2(x_offset * 0.5, 7), Vector2(x_offset, 14 + bob), Color("#24523a"), 3.0)
 	draw_circle(body_position, 17.0, outline)
-	draw_circle(body_position, 14.0, body_color)
+	draw_circle(body_position, 14.0, Color("#4b9952"))
 	draw_circle(body_position + Vector2(-5, -3), 2.8, Color("#fff1bd"))
 	draw_circle(body_position + Vector2(5, -3), 2.8, Color("#fff1bd"))
 	draw_circle(body_position + Vector2(-5, -3), 1.3, outline)
 	draw_circle(body_position + Vector2(5, -3), 1.3, outline)
-	var mouth_height := 5.0 + windup_ratio * 7.0
 	draw_colored_polygon(PackedVector2Array([
-		body_position + Vector2(-9, 5), body_position + Vector2(9, 5), body_position + Vector2(0, 5 + mouth_height),
+		body_position + Vector2(-9, 5), body_position + Vector2(9, 5), body_position + Vector2(0, 11),
 	]), Color("#4a2632"))
-	if bite_windup_remaining > 0.0:
+	if jumping:
 		draw_arc(body_position, 23.0, 0.0, TAU, 24, Color("#f3c969"), 2.0, true)
 	for index in range(health):
-		draw_circle(Vector2(-8 + index * 8, -28), 2.2, Color("#f0d070"))
+		draw_circle(body_position + Vector2(-8 + index * 8, -22), 2.2, Color("#f0d070"))
 
 func draw_shadow_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()

@@ -480,11 +480,10 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				return
 			if not world.plant_seed(seed_cell):
 				return
-			var plant := MeadowPlant.new()
+			var plant := MeadowPursuingPlant.new()
 			plants.add_child(plant)
 			plant.global_position = world.cell_to_world(seed_cell)
 			plant.setup(seed_cell, player)
-			plant.projectile_requested.connect(_on_plant_projectile_requested)
 			plant.died.connect(_on_plant_died)
 			plant.matured.connect(_on_plant_matured)
 			plant_entities[seed_cell] = int(plant_entities.get(seed_cell, 0)) + 1
@@ -517,11 +516,6 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, da
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
 	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint)
-
-func _on_plant_projectile_requested(origin: Vector2, direction: Vector2) -> void:
-	if player.dead:
-		return
-	_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#d66b58"))
 
 func _on_plant_matured(cell: Vector2i) -> void:
 	world.set_farm_tilled(cell)
