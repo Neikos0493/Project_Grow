@@ -153,6 +153,9 @@ func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
 		return
 	global_position += direction.normalized() * strength * 0.15
 
+func get_damage_number_position() -> Vector2:
+	return global_position + Vector2(0, -42)
+
 func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or amount <= 0:
 		return false

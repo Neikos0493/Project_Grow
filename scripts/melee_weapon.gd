@@ -13,6 +13,7 @@ const SWING_ARC := deg_to_rad(110.0)
 const PLANT_MASK := 4
 const MONSTER_MASK := 16
 const WORLD_MASK := 1
+const DAMAGE_NUMBER := preload("res://scripts/damage_number.gd")
 
 @onready var player: MeadowPlayer = get_parent() as MeadowPlayer
 
@@ -85,6 +86,8 @@ func _resolve_hits() -> void:
 			continue
 		if not collider.take_damage(HIT_DAMAGE):
 			continue
+		if collider.has_method("get_damage_number_position"):
+			DAMAGE_NUMBER.spawn(get_parent().get_parent(), collider.get_damage_number_position(), HIT_DAMAGE)
 		hit_targets[target_id] = true
 		if collider.has_method("apply_knockback"):
 			collider.apply_knockback(swing_direction, KNOCKBACK_STRENGTH)

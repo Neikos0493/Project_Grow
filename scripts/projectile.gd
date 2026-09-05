@@ -5,6 +5,7 @@ extends Node2D
 const SPEED := 420.0
 const LIFETIME := 1.5
 const RADIUS := 6.0
+const DAMAGE_NUMBER := preload("res://scripts/damage_number.gd")
 
 var direction := Vector2.RIGHT
 var age := 0.0
@@ -45,7 +46,8 @@ func _physics_process(delta: float) -> void:
 		if not hit.is_empty():
 			var collider: Object = hit.get("collider")
 			if damage > 0 and collider != null and collider.has_method("take_damage"):
-				collider.take_damage(damage)
+				if collider.take_damage(damage) and collider.has_method("get_damage_number_position"):
+					DAMAGE_NUMBER.spawn(get_parent(), collider.get_damage_number_position(), damage)
 			global_position = hit["position"]
 			queue_free()
 			return
