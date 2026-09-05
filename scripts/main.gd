@@ -315,6 +315,9 @@ func _on_interaction_requested() -> void:
 	if not target.is_empty() and target["kind"] == "lake_npc":
 		_open_lake_dialogue()
 		return
+	if not target.is_empty() and target["kind"] == "ranger":
+		_open_ranger_dialogue()
+		return
 	if not target.is_empty() and target["kind"] == "crate" and not bool(target["used"]):
 		if not inventory.can_add(GREEN_SEED, 3):
 			_show_toast(_msg("Inventory is full.", "背包已满。"))
@@ -327,6 +330,17 @@ func _on_interaction_requested() -> void:
 			_show_toast(_msg("Inventory is full.", "背包已满。"))
 			return
 	_show_toast(_msg("Nothing to interact with here.", "这里没有可互动的东西。") if message.is_empty() else message)
+
+func _open_ranger_dialogue() -> void:
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var lines: Array[String] = [
+		_msg("Ranger: Keep to the grass paths and leave the tide pools clear.", "护林员：请沿着草地小路行走，不要破坏潮池。"),
+		_msg("The beach is safe today, but the dunes shift after sunset.", "今天的海滩很安全，但日落后沙丘会移动。"),
+		_msg("If you find orange seeds, plant them in the warm sand.", "如果你找到橙色种子，可以把它们种在温暖的沙地里。"),
+	]
+	dialogue_box.open_dialogue(_msg("Beach Ranger", "海滩护林员"), lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
 
 func _open_lake_dialogue() -> void:
 	player.controls_locked = true
