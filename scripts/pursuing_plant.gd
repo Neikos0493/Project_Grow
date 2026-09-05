@@ -3,6 +3,7 @@ extends CharacterBody2D
 ## Seed-grown enemy that attacks only by leaping at a nearby player position.
 
 signal matured(cell: Vector2i)
+signal projectile_requested(origin: Vector2, directions: Array[Vector2])
 signal died(cell: Vector2i, position: Vector2)
 
 const GROW_TIME := 3.0
@@ -13,6 +14,9 @@ const JUMP_HEIGHT := 34.0
 const HIT_RANGE := 28.0
 const JUMP_DAMAGE := 1
 const JUMP_COOLDOWN := 1.1
+const RING_PROJECTILE_COUNT := 6
+
+var emits_ring_projectiles := false
 
 var cell := Vector2i.ZERO
 var target: MeadowPlayer
@@ -33,6 +37,8 @@ func setup(plant_cell: Vector2i, player_target: MeadowPlayer) -> void:
 	queue_redraw()
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_physics_process(true)
 	collision_layer = 4
 	collision_mask = 1
 	var shape_node := CollisionShape2D.new()
@@ -40,6 +46,15 @@ func _ready() -> void:
 	circle.radius = 12.0
 	shape_node.shape = circle
 	add_child(shape_node)
+	_growth_timer()
+	queue_redraw()
+
+func _growth_timer() -> void:
+	await get_tree().create_timer(GROW_TIME).timeout
+	if dead or mature:
+		return
+	mature = true
+	matured.emit(cell)
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -85,7 +100,15 @@ func _update_jump(delta: float) -> void:
 	jump_cooldown_remaining = JUMP_COOLDOWN
 	if is_instance_valid(target) and not target.dead and global_position.distance_to(target.global_position) <= HIT_RANGE:
 		target.take_damage(JUMP_DAMAGE)
+	if emits_ring_projectiles:
+		_emit_ring_projectiles()
 	queue_redraw()
+
+func _emit_ring_projectiles() -> void:
+	var directions: Array[Vector2] = []
+	for index in range(RING_PROJECTILE_COUNT):
+		directions.append(Vector2.RIGHT.rotated(TAU * float(index) / float(RING_PROJECTILE_COUNT)))
+	projectile_requested.emit(global_position, directions)
 
 func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
 	if dead or jumping or direction.length_squared() < 0.01:
@@ -125,7 +148,7 @@ func _draw_jumping_plant() -> void:
 	var outline := Color("#26353b")
 	draw_shadow_ellipse(Vector2(0, 10), Vector2(15, 6), Color(0.05, 0.1, 0.1, 0.32))
 	draw_circle(body_position, 17.0, outline)
-	draw_circle(body_position, 14.0, Color("#4b9952"))
+	draw_circle(body_position, 14.0, Color("#f3c969") if emits_ring_projectiles else Color("#4b9952"))
 	draw_circle(body_position + Vector2(-5, -3), 2.8, Color("#fff1bd"))
 	draw_circle(body_position + Vector2(5, -3), 2.8, Color("#fff1bd"))
 	draw_circle(body_position + Vector2(-5, -3), 1.3, outline)

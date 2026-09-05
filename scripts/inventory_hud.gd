@@ -71,6 +71,18 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#b36be0"), true)
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#ead3ff"), false, 2.0)
 		draw_circle(center, 3.0, Color("#fff0a8"))
+	elif icon == "pea_drop":
+		draw_circle(center + Vector2(-4, 2), 6.0, Color("#8bcf62"))
+		draw_circle(center + Vector2(5, -3), 6.0, Color("#70b94f"))
+	elif icon == "mutated_pea_drop":
+		draw_circle(center, 10.0, Color("#f3c969"))
+		draw_circle(center + Vector2(-3, -3), 3.0, Color("#fff1a8"))
+	elif icon == "cactus_drop":
+		draw_circle(center + Vector2(0, 2), 10.0, Color("#d85d38"))
+		draw_circle(center + Vector2(-3, -3), 3.0, Color("#ffd46c"))
+	elif icon == "lily_seed":
+		draw_circle(center + Vector2(0, 2), 10.0, Color("#7ca9dc"))
+		draw_circle(center + Vector2(-3, -3), 3.0, Color("#d8f1ff"))
 	elif icon == "hoe":
 		draw_line(center + Vector2(-7, 10), center + Vector2(5, -8), Color("#a8754f"), 4.0)
 		draw_line(center + Vector2(1, -8), center + Vector2(11, -8), Color("#c6cbd0"), 4.0)

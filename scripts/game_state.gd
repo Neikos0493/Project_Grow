@@ -4,6 +4,7 @@ extends Node
 var has_inventory_snapshot := false
 var inventory_slots: Array[Dictionary] = []
 var selected_slot := 0
+var language := "zh"
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
 

@@ -632,12 +632,16 @@ func _draw_drop(drop: Dictionary) -> void:
 		if not available:
 			draw_arc(position, 10.0, 0.0, TAU, 24, Color(0.3, 0.61, 0.33, 0.55), 1.0)
 		return
-	var base_color := Color("#f3c969")
-	var color := base_color if available else Color(base_color, 0.35)
+	var drop_color := Color("#8bcf62")
+	if item_id == "mutated_pea_drop":
+		drop_color = Color("#f3c969")
+	elif item_id == "cactus_drop":
+		drop_color = Color("#d85d38")
+	var color := drop_color if available else Color(drop_color, 0.35)
 	draw_circle(position, 6.0, color)
 	draw_circle(position + Vector2(-2, -2), 2.0, Color(1, 0.96, 0.7, 0.8) if available else Color(1, 0.96, 0.7, 0.3))
 	if not available:
-		draw_arc(position, 10.0, 0.0, TAU, 24, Color(base_color, 0.55), 1.0)
+		draw_arc(position, 10.0, 0.0, TAU, 24, Color(drop_color, 0.55), 1.0)
 
 func _tile_color(tile_type: int, cell: Vector2i) -> Color:
 	match tile_type:

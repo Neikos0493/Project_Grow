@@ -85,6 +85,50 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 0,
 		"description": "A strange relic left behind by the lake monster.",
 	},
+	"pea_drop": {
+		"name": "Pea",
+		"consumable": false,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "pea_drop",
+		"sell_price": 20,
+		"buy_price": 0,
+		"description": "A pea harvested from an ordinary green plant.",
+	},
+	"mutated_pea_drop": {
+		"name": "Mutated Pea",
+		"consumable": false,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "mutated_pea_drop",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "A rare mutated pea wanted by the lake keeper.",
+	},
+	"cactus_drop": {
+		"name": "Cactus Fruit",
+		"consumable": false,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "cactus_drop",
+		"sell_price": 100,
+		"buy_price": 0,
+		"description": "A valuable fruit from an orange cactus.",
+	},
+	"lily_seed": {
+		"name": "Water Lily Seed",
+		"consumable": true,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "lily_seed",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "Plant it in the pond to awaken the lake monster.",
+	},
 	"plant": {
 		"name": "Plant",
 		"consumable": false,
@@ -154,6 +198,10 @@ func get_item_name(item_id: String) -> String:
 			"green_seed": return "绿种子"
 			"yellow_ball": return "黄色球"
 			"melee_weapon": return "草甸之刃"
+			"pea_drop": return "豌豆"
+			"mutated_pea_drop": return "变异豌豆"
+			"cactus_drop": return "仙人掌果实"
+			"lily_seed": return "睡莲种子"
 			"plant": return "植物"
 			"orange_seed": return "橙色种子"
 			"blue_seed": return "蓝色种子"
@@ -167,6 +215,10 @@ func get_item_description(item_id: String) -> String:
 			"green_seed": return "种在翻耕土地上，长成草甸植物。"
 			"yellow_ball": return "向草甸发射明亮的投射物。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
+			"pea_drop": return "普通绿色植物掉落的豌豆。"
+			"mutated_pea_drop": return "湖之守望者需要的稀有变异豌豆。"
+			"cactus_drop": return "仙人掌掉落的高价值果实。"
+			"lily_seed": return "种在池塘里，可以唤醒湖怪。"
 			"plant": return "成熟植物，可以在商店出售。"
 			"orange_seed": return "种在沙地上，长成会发射扇形弹幕的仙人掌。"
 			"blue_seed": return "只能种在水里，会唤醒湖中的古老生物。"

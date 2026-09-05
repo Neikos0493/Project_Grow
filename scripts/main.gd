@@ -8,6 +8,10 @@ const ORANGE_SEED := "orange_seed"
 const YELLOW_BALL := "yellow_ball"
 const MELEE_WEAPON := "melee_weapon"
 const PLANT := "plant"
+const PEA_DROP := "pea_drop"
+const MUTATED_PEA_DROP := "mutated_pea_drop"
+const CACTUS_DROP := "cactus_drop"
+const LILY_SEED := "lily_seed"
 const BLUE_SEED := "blue_seed"
 const QUEST_ITEM_1 := "quest_item_1"
 const STARTING_COINS := 9999
@@ -148,9 +152,11 @@ func _play_arrival() -> void:
 		player.controls_locked = false
 
 func _load_language() -> void:
+	language = GameState.language
 	var config := ConfigFile.new()
 	if config.load("user://settings.cfg") == OK:
-		language = str(config.get_value("settings", "language", "en"))
+		language = str(config.get_value("settings", "language", language))
+	GameState.language = language
 
 func _msg(english: String, chinese: String) -> String:
 	return chinese if language == "zh" else english
@@ -330,23 +336,23 @@ func _open_lake_dialogue() -> void:
 	var speaker := _msg("Lake Keeper", "湖之守望者")
 	match quest_state:
 		QUEST_AWAITING_PLANT:
-			if inventory.has_item(PLANT) and inventory.can_add(BLUE_SEED):
-				if inventory.remove_item(PLANT, 1):
-					if inventory.try_add(BLUE_SEED, 1):
+			if inventory.has_item(MUTATED_PEA_DROP) and inventory.can_add(LILY_SEED):
+				if inventory.remove_item(MUTATED_PEA_DROP, 1):
+					if inventory.try_add(LILY_SEED, 1):
 						quest_state = QUEST_SEED_GRANTED
-						lines = [_msg("Thank you. This blue seed belongs in the pond.", "谢谢。把这颗蓝色种子种进池塘吧。")]
+						lines = [_msg("Thank you. This water lily seed belongs in the pond.", "谢谢。这颗睡莲种子应该种进池塘。")]
 					else:
 						# Restore the delivered plant if the reward transaction fails.
-						inventory.try_add(PLANT, 1)
-						lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
+						inventory.try_add(MUTATED_PEA_DROP, 1)
+						lines = [_msg("I could not complete that exchange yet.", "这次兑换还无法完成。")]
 				else:
-					lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
-			elif inventory.has_item(PLANT):
-				lines = [_msg("Make room in your pack before delivering the plant.", "请先为蓝色种子腾出背包空间。")]
+					lines = [_msg("I could not complete that exchange yet.", "这次兑换还无法完成。")]
+			elif inventory.has_item(MUTATED_PEA_DROP):
+				lines = [_msg("Make room in your pack for the water lily seed.", "请先为睡莲种子腾出背包空间。")]
 			else:
-				lines = [_msg("Bring me one mature plant from the meadow.", "带一株草甸里的成熟植物给我。")]
+				lines = [_msg("Bring me a mutated pea from the rare green plant.", "带一颗变异植物掉落的变异豌豆来。")]
 		QUEST_SEED_GRANTED:
-			lines = [_msg("Plant the blue seed in the pond to awaken the lake.", "把蓝色种子种在池塘里，唤醒湖水。")]
+			lines = [_msg("Plant the water lily seed in the pond to awaken the lake.", "把睡莲种子种在池塘里，唤醒湖水。")]
 		QUEST_WATER_GROWING, QUEST_MONSTER_ACTIVE:
 			lines = [_msg("The lake is already awake. Be careful.", "湖水已经醒来。小心。")]
 		QUEST_DEFEATED:
@@ -535,15 +541,17 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			if not world.plant_seed(seed_cell):
 				return
 			var is_mutation := GameState.green_plantings_since_mutation >= 9 or randf() < 0.1
-			var plant: MeadowPursuingPlant = MeadowMutatedPlant.new() if is_mutation else MeadowPursuingPlant.new()
-			plants.add_child(plant)
+			var plant := MeadowPursuingPlant.new()
+			plant.emits_ring_projectiles = is_mutation
 			plant.global_position = world.cell_to_world(seed_cell)
 			plant.setup(seed_cell, player)
 			if is_mutation:
-				var mutated_plant := plant as MeadowMutatedPlant
-				mutated_plant.projectile_requested.connect(_on_green_plant_projectile_requested)
-			plant.died.connect(_on_plant_died)
+				plant.projectile_requested.connect(_on_green_plant_projectile_requested)
+				plant.died.connect(_on_plant_died.bind(MUTATED_PEA_DROP))
+			else:
+				plant.died.connect(_on_plant_died.bind(PEA_DROP))
 			plant.matured.connect(_on_plant_matured)
+			plants.add_child(plant)
 			plant_entities[seed_cell] = int(plant_entities.get(seed_cell, 0)) + 1
 			if not inventory.consume_selected():
 				var plant_count := int(plant_entities.get(seed_cell, 0)) - 1
@@ -572,15 +580,15 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			cactus.global_position = world.cell_to_world(sand_cell)
 			cactus.setup(sand_cell, player)
 			cactus.projectile_requested.connect(_on_orange_cactus_projectile_requested)
-			cactus.died.connect(_on_plant_died)
+			cactus.died.connect(_on_plant_died.bind(CACTUS_DROP))
 			cactus.matured.connect(_on_plant_matured)
 			plants.add_child(cactus)
 			plant_entities[sand_cell] = int(plant_entities.get(sand_cell, 0)) + 1
 			_show_toast(_msg("Orange seed planted. It will mature in 3 seconds.", "橙色种子已种下，3 秒后成熟。"))
-		BLUE_SEED:
+		LILY_SEED:
 			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
 			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
-				_show_toast(_msg("Blue seeds must be planted in a free pond tile beside you.", "蓝色种子必须种在身边空闲的池塘水格里。"))
+				_show_toast(_msg("Water lily seeds must be planted in a free pond tile beside you.", "睡莲种子必须种在身边空闲的池塘水格里。"))
 				return
 			if not inventory.consume_selected():
 				world.clear_water_growth(water_cell)
@@ -612,7 +620,7 @@ func _on_orange_cactus_projectile_requested(origin: Vector2, directions: Array[V
 func _on_plant_matured(cell: Vector2i) -> void:
 	world.set_farm_tilled(cell)
 
-func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
+func _on_plant_died(cell: Vector2i, position: Vector2, drop_item_id: String) -> void:
 	var plant_count := int(plant_entities.get(cell, 0))
 	if plant_count <= 0:
 		return
@@ -620,8 +628,8 @@ func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
 		plant_entities.erase(cell)
 	else:
 		plant_entities[cell] = plant_count - 1
-	world.add_drop(position, PLANT, 1, 0)
-	_show_toast(_msg("The plant fell. Pick it up and sell it at the shop.", "植物倒下了，拾取后可以带到商店出售。"))
+	world.add_drop(position, drop_item_id, 1, 3000)
+	_show_toast(_msg("The plant dropped %s." % inventory.get_item_name(drop_item_id), "%s掉落了%s。" % [inventory.get_item_name(drop_item_id), inventory.get_item_name(drop_item_id)]))
 
 func _begin_water_growth(root: Vector2i) -> void:
 	quest_state = QUEST_WATER_GROWING

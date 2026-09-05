@@ -2,29 +2,11 @@ class_name MeadowMutatedPlant
 extends MeadowPursuingPlant
 ## Green-seed mutation that adds a six-shot ring after landing.
 
-signal projectile_requested(origin: Vector2, directions: Array[Vector2])
-
 const RING_PROJECTILE_COUNT := 6
 
-func _update_jump(delta: float) -> void:
-	jump_elapsed += delta
-	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0)
-	global_position = jump_origin.lerp(jump_target, progress)
-	if progress < 1.0:
-		queue_redraw()
-		return
-	jumping = false
-	jump_cooldown_remaining = JUMP_COOLDOWN
-	if is_instance_valid(target) and not target.dead and global_position.distance_to(target.global_position) <= HIT_RANGE:
-		target.take_damage(JUMP_DAMAGE)
-	_emit_ring_projectiles()
-	queue_redraw()
-
-func _emit_ring_projectiles() -> void:
-	var directions: Array[Vector2] = []
-	for index in range(RING_PROJECTILE_COUNT):
-		directions.append(Vector2.RIGHT.rotated(TAU * float(index) / float(RING_PROJECTILE_COUNT)))
-	projectile_requested.emit(global_position, directions)
+func _ready() -> void:
+	emits_ring_projectiles = true
+	super._ready()
 
 func _draw_jumping_plant() -> void:
 	var progress := minf(jump_elapsed / JUMP_DURATION, 1.0) if jumping else 0.0
