@@ -3,10 +3,10 @@ extends MeadowWorld
 ## Independently owned Greenmeadow terrain, props, scenery, and encounter area.
 
 const MAP_ID := &"greenmeadow"
-const PLAYER_START_CELL := Vector2i(20, 2)
+const SHIP_CELL := Vector2i(5, 20)
+const PLAYER_START_CELL := SHIP_CELL + Vector2i.DOWN
 const SHOP_CELL := Vector2i(15, 9)
 const LOOKOUT_CELL := Vector2i(20, 0)
-const SHIP_CELL := Vector2i(20, 1)
 const CLIFF_X_MIN := 14
 const CLIFF_X_MAX := 26
 const SCENIC_SKY := Color("#293d4a")

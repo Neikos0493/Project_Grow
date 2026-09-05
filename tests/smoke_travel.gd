@@ -177,13 +177,17 @@ func _initialize() -> void:
 		return
 	if not _test_lake_seed_transactions(main):
 		return
+	if not _test_gameplay_update_regressions(main, game_state):
+		return
+	if not await _test_requested_feature_regressions(main, game_state):
+		return
 	if not _test_cross_map_death_reset(main, game_state):
 		return
 	if not await _test_transformed_map_coordinates(main):
 		return
 	if not _test_capacity_transactions(main):
 		return
-	if not _test_quest_relic_fallbacks(main):
+	if not _test_bosses_drop_no_task_items(main):
 		return
 	if not _test_save_failure_backoff(main, game_state):
 		return
@@ -287,23 +291,23 @@ func _test_inventory_exchanges(main: MeadowMain) -> bool:
 	main.inventory.import_state(_inventory_state([
 		{"id": "mutated_pea_drop", "count": 1},
 		{"id": "hoe", "count": 1},
-		{"id": "yellow_ball", "count": 1},
+		{"id": "bow", "count": 1},
 		{"id": "melee_weapon", "count": 1},
 		{"id": "green_seed", "count": 64},
 	]))
-	if not _expect(main.inventory.try_exchange(main.MUTATED_PEA_DROP, main.LILY_SEED), "Atomic exchange rejected a full inventory whose final mutated pea freed a slot"):
+	if not _expect(main.inventory.try_exchange(main.MUTATED_PEA_DROP, main.BLUE_SEED), "Atomic exchange rejected a full inventory whose final mutated pea freed a slot"):
 		return false
-	if not _expect(not main.inventory.has_item(main.MUTATED_PEA_DROP) and main.inventory.has_item(main.LILY_SEED), "Successful mutated-pea exchange did not atomically replace the final pea with a lily seed"):
+	if not _expect(not main.inventory.has_item(main.MUTATED_PEA_DROP) and main.inventory.has_item(main.BLUE_SEED), "Successful mutated-pea exchange did not atomically replace the final pea with a blue seed"):
 		return false
 	main.inventory.import_state(_inventory_state([
 		{"id": "mutated_pea_drop", "count": 2},
 		{"id": "hoe", "count": 1},
-		{"id": "yellow_ball", "count": 1},
+		{"id": "bow", "count": 1},
 		{"id": "melee_weapon", "count": 1},
 		{"id": "green_seed", "count": 64},
 	]))
 	var before := main.inventory.export_state()
-	if not _expect(not main.inventory.try_exchange(main.MUTATED_PEA_DROP, main.LILY_SEED), "Atomic exchange succeeded although removing one stacked pea left the inventory full"):
+	if not _expect(not main.inventory.try_exchange(main.MUTATED_PEA_DROP, main.BLUE_SEED), "Atomic exchange succeeded although removing one stacked pea left the inventory full"):
 		return false
 	if not _expect(main.inventory.export_state() == before, "Failed stacked mutated-pea exchange did not roll back every slot"):
 		return false
@@ -357,6 +361,690 @@ func _test_lake_seed_transactions(main: MeadowMain) -> bool:
 			return false
 	main.world.restore_state({})
 	main.map_host.set_runtime_suspended(false)
+	return true
+
+func _test_gameplay_update_regressions(main: MeadowMain, game_state: Node) -> bool:
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	var default_inventory: Dictionary = game_state._default_inventory_state()
+	if not _expect(str(default_inventory["slots"][0].get("id", "")).is_empty(), "New games do not leave displayed slot 1 empty for the crate hoe"):
+		return false
+	if not _expect(not main.inventory.is_droppable(main.HOE) and main.inventory.get_sell_price(main.HOE) == 0, "Hoe is still droppable or sellable"):
+		return false
+	var center := Vector2i(5, 5)
+	var tilled_count := main.world.till_nearby(main.world.cell_to_world(center))
+	if not _expect(tilled_count == 9, "Hoe did not till the current tile and all eight valid neighbors"):
+		return false
+	for y in range(center.y - 1, center.y + 2):
+		for x in range(center.x - 1, center.x + 2):
+			if not _expect(main.world.farm_tiles.has(Vector2i(x, y)), "Hoe omitted a neighboring grass tile"):
+				return false
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": main.SMALL_SEED, "count": 1},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	game_state.green_plantings_since_mutation = 9
+	if not _expect(main.world.till(center), "Could not prepare the small-seed regression tile"):
+		return false
+	if not _expect(main._plant_green_seed_at(center, main.SMALL_SEED) == "planted", "Small seed could not be planted"):
+		return false
+	var planted: Node = null
+	for child in main.plants.get_children():
+		if child is MeadowPursuingPlant:
+			planted = child
+			break
+	var small_seed_is_ordinary := planted is MeadowPursuingPlant \
+		and not (planted is MeadowMutatedPlant)
+	if not _expect(small_seed_is_ordinary, "Small seed produced a mutated pea plant"):
+		return false
+	if not _expect(game_state.green_plantings_since_mutation == 9, "Small seed changed the ordinary-seed mutation counter"):
+		return false
+	_clear_runtime_entities(main)
+	var shore := main.map_host.activate_map(&"sunset_shore")
+	if not _expect(
+		shore != null,
+		"Could not activate Sunset Shore for the Saxaul rollback probe"
+	):
+		return false
+	main._bind_active_map(shore)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	var patch_center := Vector2i(12, 12)
+	var patch_cells := main.world.convert_saxaul_patch_to_grass(patch_center)
+	if not _expect(patch_cells.size() == 9, "Could not prepare the Saxaul rollback patch"):
+		return false
+	var farm_cell := patch_center + Vector2i.RIGHT
+	var occupied_cell := patch_center + Vector2i.LEFT
+	main.world.farm_tiles[farm_cell] = {"state": MeadowWorld.FARM_SEEDED}
+	var occupied := {occupied_cell: true}
+	main.world.revert_saxaul_patch_to_sand(patch_center, occupied)
+	if not _expect(main.world.permanent_grass.has(farm_cell) and main.world.farm_tiles.has(farm_cell), "Saxaul retry rollback erased player farming state"):
+		return false
+	if not _expect(main.world.cells[farm_cell.y][farm_cell.x] == MeadowWorld.GRASS, "Saxaul retry rollback left protected farm state on sand"):
+		return false
+	if not _expect(main.world.permanent_grass.has(occupied_cell) and main.world.cells[occupied_cell.y][occupied_cell.x] == MeadowWorld.GRASS, "Saxaul retry rollback reverted grass beneath a live plant"):
+		return false
+	if not _expect(main.world.permanent_grass.size() == 2, "Saxaul retry rollback kept unoccupied encounter grass"):
+		return false
+	var green := main.map_host.activate_map(&"greenmeadow")
+	if not _expect(
+		green != null,
+		"Could not restore Greenmeadow after the Saxaul rollback probe"
+	):
+		return false
+	main._bind_active_map(green)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	game_state.pea_npc_state = 1
+	game_state.pea_npc_transform_elapsed = 0.64
+	main.world.set_pea_npc_phase(1)
+	main.world.pea_npc_transform_elapsed = game_state.pea_npc_transform_elapsed
+	main.world.advance_pea_npc_transform(0.16)
+	game_state.pea_npc_transform_elapsed = main.world.pea_npc_transform_elapsed
+	var captured_global: Dictionary = game_state._build_save_data()["global"]
+	if not _expect(is_equal_approx(float(captured_global.get("pea_npc_transform_elapsed", 0.0)), 0.8), "Pea transformation progress was not captured"):
+		return false
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	game_state.pea_npc_state = 0
+	game_state.pea_npc_transform_elapsed = 0.0
+	main.map_host.set_runtime_suspended(false)
+	return true
+
+func _test_requested_feature_regressions(
+	main: MeadowMain,
+	game_state: Node
+) -> bool:
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	game_state.defeated_boss_ids.clear()
+	main._update_bottle_hud()
+	if not _expect(
+		main.bottle_button.texture_normal == main.BOTTLE_TEXTURES[0],
+		"Empty bottle texture was not selected with no defeated bosses"
+	):
+		return false
+	if not _expect(
+		main.bottle_message.text == main._msg(
+			"The World Tree's gift\nOverflow brings new life",
+			"世界树的馈赠\n满溢即是新生"
+		),
+		"Empty bottle message is incorrect"
+	):
+		return false
+	game_state.record_boss_defeat(main.BOSS_LAKE)
+	main._update_bottle_hud()
+	if not _expect(
+		main.bottle_button.texture_normal == main.BOTTLE_TEXTURES[1],
+		"Half bottle texture was not selected after one boss"
+	):
+		return false
+	game_state.record_boss_defeat(main.BOSS_SAXAUL)
+	main._update_bottle_hud()
+	if not _expect(
+		main.bottle_button.texture_normal == main.BOTTLE_TEXTURES[2],
+		"Full bottle texture was not selected after two bosses"
+	):
+		return false
+	if not _expect(
+		main.bottle_message.text == main._msg(
+			"The World Tree is calling...",
+			"世界树在呼唤它…"
+		),
+		"Full bottle message is incorrect"
+	):
+		return false
+	main._open_bottle_overlay()
+	if not _expect(
+		main.bottle_overlay.visible and main.player.controls_locked,
+		"Bottle overlay did not open and lock controls"
+	):
+		return false
+	var selected_before_bottle_input := main.inventory.selected_slot
+	var bottle_number_key := InputEventKey.new()
+	bottle_number_key.physical_keycode = KEY_2
+	bottle_number_key.pressed = true
+	main._unhandled_input(bottle_number_key)
+	var bottle_wheel := InputEventMouseButton.new()
+	bottle_wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	bottle_wheel.pressed = true
+	main._unhandled_input(bottle_wheel)
+	var bottle_player_position := main.player.global_position
+	main._on_interaction_requested()
+	if not _expect(
+		main.inventory.selected_slot == selected_before_bottle_input
+		and main.player.global_position == bottle_player_position
+		and not main.dialogue_box.is_open()
+		and not main.shop_open
+		and not main.radar_open,
+		"Bottle overlay leaked inventory or interaction input to gameplay"
+	):
+		return false
+	main._close_bottle_overlay()
+	if not _expect(
+		not main.bottle_overlay.visible and not main.player.controls_locked,
+		"Bottle overlay did not close and unlock controls"
+	):
+		return false
+	main._open_bottle_overlay()
+	main.player.restore_state(1)
+	if not _expect(
+		main.player.take_damage(1),
+		"Player did not accept lethal damage for the bottle close probe"
+	):
+		return false
+	if not _expect(
+		main.player.dead
+		and not main.bottle_overlay.visible
+		and main.player.controls_locked,
+		"Player death did not close the bottle overlay and retain the death lock"
+	):
+		return false
+	if not _expect(
+		main.player.respawn_at(
+			main.world.to_global(main.world.get_respawn_position())
+		),
+		"Could not restore the player after the bottle death probe"
+	):
+		return false
+	main.death_overlay.hide()
+	game_state.defeated_boss_ids.clear()
+	main._update_bottle_hud()
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	var crate_cell := Vector2i(25, 17)
+	var crate_origin := main.world.cell_to_world(crate_cell + Vector2i.LEFT)
+	main.player.global_position = main.world.to_global(crate_origin)
+	main.player.facing = Vector2.RIGHT
+	main._on_interaction_requested()
+	if not _expect(
+		main.inventory.get_slot(0) == {"id": main.HOE, "count": 1},
+		"Crate did not place the hoe in displayed slot 1"
+	):
+		return false
+	var small_seed_count := 0
+	for slot_index in range(main.inventory.SLOT_COUNT):
+		var slot := main.inventory.get_slot(slot_index)
+		if str(slot.get("id", "")) == main.SMALL_SEED:
+			small_seed_count += int(slot.get("count", 0))
+	if not _expect(
+		small_seed_count == 3,
+		"Crate did not grant three small seeds"
+	):
+		return false
+	var crate_target := main.world.get_interaction_target(
+		crate_origin,
+		Vector2.RIGHT
+	)
+	if not _expect(
+		bool(crate_target.get("used", false)),
+		"Crate was not marked used after its first reward"
+	):
+		return false
+	var crate_inventory := main.inventory.export_state()
+	main._on_interaction_requested()
+	if not _expect(
+		main.inventory.export_state() == crate_inventory,
+		"Used crate granted rewards a second time"
+	):
+		return false
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": main.HOE, "count": 1},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	main._on_interaction_requested()
+	var legacy_small_seed_count := 0
+	for slot_index in range(main.inventory.SLOT_COUNT):
+		var legacy_slot := main.inventory.get_slot(slot_index)
+		if str(legacy_slot.get("id", "")) == main.SMALL_SEED:
+			legacy_small_seed_count += int(legacy_slot.get("count", 0))
+	var legacy_crate_target := main.world.get_interaction_target(
+		crate_origin,
+		Vector2.RIGHT
+	)
+	if not _expect(
+		legacy_small_seed_count == 3
+		and bool(legacy_crate_target.get("used", false)),
+		"Existing-save hoe owner could not claim the crate's three small seeds"
+	):
+		return false
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": main.MUTATED_PEA_DROP, "count": 1},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	main.quest_state = main.QUEST_AWAITING_PLANT
+	main.player.controls_locked = true
+	main._dialogue_choice_context = "lake_keeper"
+	main.dialogue_box.open_choice_dialogue(
+		"？？？",
+		"……",
+		"交付「金色豌豆」",
+		"E  Select",
+		"继续"
+	)
+	main._on_dialogue_choice_selected(0)
+	if not _expect(
+		main.quest_state == main.QUEST_SEED_GRANTED
+		and not main.inventory.has_item(main.MUTATED_PEA_DROP)
+		and main.inventory.has_item(main.BLUE_SEED),
+		"Lake Keeper exchange did not replace one Golden Pea with a Blue Seed"
+	):
+		return false
+	if not _expect(
+		main.dialogue_box.body_label.text == main._msg(
+			"Drop it into the water... and it will awaken...",
+			"投入水中…它便会苏醒…"
+		),
+		"Lake Keeper follow-up dialogue is incorrect"
+	):
+		return false
+	main.dialogue_box.close_dialogue()
+	main.player.controls_locked = false
+	main.inventory.import_state(_inventory_state([
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	main.quest_state = main.QUEST_MONSTER_ACTIVE
+	main.lake_monster = null
+	main._reset_lake_encounter_on_player_death()
+	if not _expect(
+		main.quest_state == main.QUEST_SEED_GRANTED
+		and main.inventory.has_item(main.BLUE_SEED),
+		"Failed Lake encounter did not return a usable Blue Seed"
+	):
+		return false
+	var shore := main.map_host.activate_map(&"sunset_shore")
+	if not _expect(
+		shore != null,
+		"Could not activate Sunset Shore for feature position checks"
+	):
+		return false
+	main._bind_active_map(shore)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	var sunflower_cell := Vector2i(-1, -1)
+	var pea_cell := Vector2i(-1, -1)
+	for prop in main.world.props:
+		match str(prop.get("id", "")):
+			"sunset_shore.ranger":
+				sunflower_cell = prop.get("cell", sunflower_cell)
+			"sunset_shore.pea_npc":
+				pea_cell = prop.get("cell", pea_cell)
+	if not _expect(
+		sunflower_cell == Vector2i(5, 8)
+		and pea_cell == Vector2i(7, 8),
+		"Sunflower or Pea NPC was not moved three tiles left"
+	):
+		return false
+	var saved_ranger_position := main.world.cell_to_world(sunflower_cell)
+	main._place_player_for_entry(
+		"continue",
+		{
+			"last_player_position": [
+				saved_ranger_position.x,
+				saved_ranger_position.y,
+			]
+		}
+	)
+	var relocated_ranger_position := main.world.to_local(
+		main.player.global_position
+	)
+	if not _expect(
+		main.world.is_position_unoccupied(relocated_ranger_position)
+		and not relocated_ranger_position.is_equal_approx(
+			main.world.get_initial_spawn_position()
+		)
+		and maxi(
+			abs(main.world.world_to_cell(relocated_ranger_position).x - sunflower_cell.x),
+			abs(main.world.world_to_cell(relocated_ranger_position).y - sunflower_cell.y)
+		) <= 1,
+		"Legacy player position on the moved sunflower was not relocated nearby"
+	):
+		return false
+	var restored_grass_cell := Vector2i(12, 12)
+	var blocked_shore_snapshot := {
+		"permanent_grass": [[restored_grass_cell.x, restored_grass_cell.y]],
+		"farm": [{"cell": [sunflower_cell.x, sunflower_cell.y], "state": MeadowWorld.FARM_SEEDED}],
+		"entities": [{
+			"kind": "pursuing_plant",
+			"entity_id": "legacy-shore-ranger-plant",
+			"cell": [sunflower_cell.x, sunflower_cell.y],
+			"position": [saved_ranger_position.x, saved_ranger_position.y],
+			"health": MeadowPursuingPlant.MAX_HEALTH,
+			"age": 0.5,
+			"mature": false,
+		}],
+	}
+	main._restore_map_state(blocked_shore_snapshot)
+	var migrated_shore_plant: MeadowPursuingPlant
+	for child in main.plants.get_children():
+		if child is MeadowPursuingPlant \
+		and child.entity_id == "legacy-shore-ranger-plant":
+			migrated_shore_plant = child
+			break
+	if not _expect(
+		is_instance_valid(migrated_shore_plant)
+		and migrated_shore_plant.cell != sunflower_cell
+		and main.world.is_valid_farm_cell(migrated_shore_plant.cell)
+		and main.world.farm_tiles.has(migrated_shore_plant.cell)
+		and not main.world.is_prop_cell(migrated_shore_plant.cell)
+		and main.world.permanent_grass.has(restored_grass_cell),
+		"Legacy plant and farm on the moved sunflower were not relocated safely"
+	):
+		return false
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	var standalone_shore_snapshot := {
+		"farm": [{
+			"cell": [sunflower_cell.x, sunflower_cell.y],
+			"state": MeadowWorld.FARM_TILLED,
+		}],
+	}
+	main._restore_map_state(standalone_shore_snapshot)
+	if not _expect(
+		main.world.farm_tiles.size() == 1
+		and not main.world.farm_tiles.has(sunflower_cell)
+		and not main.world.is_prop_cell(
+			main.world.farm_tiles.keys()[0]
+		),
+		"Standalone legacy farm on the moved sunflower was not relocated"
+	):
+		return false
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	main.world.set_pea_npc_phase(1)
+	main.world.pea_npc_transform_elapsed = MeadowWorld.WORM_TRANSFORM_DURATION
+	main.world.advance_pea_npc_transform(0.5)
+	if not _expect(
+		main.world.pea_npc_phase == 1
+		and is_equal_approx(
+			main.world.pea_npc_transform_elapsed,
+			MeadowWorld.WORM_TRANSFORM_DURATION
+		),
+		"Completed Pea transformation did not remain on its static final state"
+	):
+		return false
+	var green := main.map_host.activate_map(&"greenmeadow")
+	if not _expect(
+		green != null,
+		"Could not restore Greenmeadow after requested feature probes"
+	):
+		return false
+	main._bind_active_map(green)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	var ship_cell := main.world.get_ship_cell()
+	var saved_ship_position := main.world.cell_to_world(ship_cell)
+	main._place_player_for_entry(
+		"continue",
+		{"last_player_position": [saved_ship_position.x, saved_ship_position.y]}
+	)
+	var relocated_player_position := main.world.to_local(
+		main.player.global_position
+	)
+	if not _expect(
+		main.world.is_position_unoccupied(relocated_player_position)
+		and not relocated_player_position.is_equal_approx(
+			main.world.get_initial_spawn_position()
+		)
+		and maxi(
+			abs(main.world.world_to_cell(relocated_player_position).x - ship_cell.x),
+			abs(main.world.world_to_cell(relocated_player_position).y - ship_cell.y)
+		) <= 1,
+		"Legacy player position on the moved ship was not relocated nearby"
+	):
+		return false
+	var blocked_green_snapshot := {
+		"farm": [{"cell": [ship_cell.x, ship_cell.y], "state": MeadowWorld.FARM_SEEDED}],
+		"entities": [{
+			"kind": "pursuing_plant",
+			"entity_id": "legacy-green-ship-plant",
+			"cell": [ship_cell.x, ship_cell.y],
+			"position": [saved_ship_position.x, saved_ship_position.y],
+			"health": MeadowPursuingPlant.MAX_HEALTH,
+			"age": 0.5,
+			"mature": false,
+		}],
+	}
+	main._restore_map_state(blocked_green_snapshot)
+	var migrated_green_plant: MeadowPursuingPlant
+	for child in main.plants.get_children():
+		if child is MeadowPursuingPlant \
+		and child.entity_id == "legacy-green-ship-plant":
+			migrated_green_plant = child
+			break
+	if not _expect(
+		is_instance_valid(migrated_green_plant)
+		and migrated_green_plant.cell != ship_cell
+		and main.world.farm_tiles.has(migrated_green_plant.cell)
+		and not main.world.is_prop_cell(migrated_green_plant.cell),
+		"Legacy farm and plant on the moved ship were not relocated together"
+	):
+		return false
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	if not _expect(
+		main.world.get_ship_cell() == Vector2i(5, 20),
+		"Greenmeadow ship is not in the lower-left area"
+	):
+		return false
+	if not _expect(
+		main.world.get_initial_spawn_cell() \
+		== main.world.get_ship_cell() + Vector2i.DOWN
+		and main.world.get_respawn_cell() \
+		== main.world.get_ship_cell() + Vector2i.DOWN,
+		"Greenmeadow spawn points did not follow the moved ship"
+	):
+		return false
+	main.inventory.import_state(_inventory_state([
+		{"id": main.HOE, "count": 1},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	main.shop_open = false
+	var slot_size := Vector2(52, 52)
+	var gap := 6.0
+	var total_width := slot_size.x * main.inventory.SLOT_COUNT \
+		+ gap * (main.inventory.SLOT_COUNT - 1)
+	var slot_center := Vector2(
+		(main.inventory_hud.size.x - total_width) * 0.5 + 26.0,
+		main.inventory_hud.size.y - 40.0
+	)
+	main._update_inventory_tooltip_at(slot_center)
+	if not _expect(
+		main.inventory_sell_tooltip.visible
+		and main.inventory.get_item_name(main.HOE) \
+		in main.inventory_sell_tooltip.text
+		and main._msg("NOT FOR SALE", "非卖品") \
+		in main.inventory_sell_tooltip.text,
+		"Non-shop hotbar hover did not show item name and price status"
+	):
+		return false
+	main._set_paused(true)
+	if not _expect(
+		not main.inventory_sell_tooltip.visible,
+		"Opening the pause menu did not clear the hotbar tooltip"
+	):
+		return false
+	main._set_paused(false)
+	main._clear_inventory_sell_tooltip()
+	shore = main.map_host.activate_map(&"sunset_shore")
+	if not _expect(
+		shore != null,
+		"Could not activate Sunset Shore for the Saxaul retry probe"
+	):
+		return false
+	main._bind_active_map(shore)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	var boss_cell := Vector2i(12, 12)
+	var boss_patch := main.world.convert_saxaul_patch_to_grass(boss_cell)
+	if not _expect(
+		boss_patch.size() == 9,
+		"Could not prepare the Saxaul retry feature probe"
+	):
+		return false
+	main.inventory.import_state(_inventory_state([
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	main.saxaul_boss = main._create_saxaul_boss(boss_cell)
+	if not _expect(
+		is_instance_valid(main.saxaul_boss),
+		"Could not create the Saxaul retry feature probe"
+	):
+		return false
+	main._reset_saxaul_encounter_on_player_death()
+	if not _expect(
+		main.inventory.has_item(main.SAXAUL_SEED)
+		and not is_instance_valid(main.saxaul_boss),
+		"Failed Saxaul encounter did not return a usable summoning seed"
+	):
+		return false
+	main.inventory.import_state(_inventory_state([
+		{"id": main.GREEN_SEED, "count": 64},
+		{"id": main.SMALL_SEED, "count": 64},
+		{"id": main.ORANGE_SEED, "count": 64},
+		{"id": main.PEA_DROP, "count": 64},
+		{"id": main.CACTUS_DROP, "count": 64},
+	]))
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": main.SAXAUL_SEED, "count": 1},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+		{"id": "", "count": 0},
+	]))
+	var immature_boss_cell := Vector2i(12, 12)
+	if not _expect(
+		main.world.plant_saxaul_seed(immature_boss_cell),
+		"Could not reserve an immature Saxaul retry patch"
+	):
+		return false
+	main.saxaul_boss = main._create_saxaul_boss(immature_boss_cell)
+	if not _expect(
+		is_instance_valid(main.saxaul_boss)
+		and main.inventory.consume_selected(),
+		"Could not create the immature Saxaul retry encounter"
+	):
+		return false
+	main._saxaul_failure_seed_returned = false
+	main._reset_saxaul_encounter_on_player_death()
+	if not _expect(
+		not main.world.farm_tiles.has(immature_boss_cell)
+		and main.inventory.has_item(main.SAXAUL_SEED)
+		and main.world.can_plant_saxaul_seed(immature_boss_cell),
+		"Immature Saxaul failure left its retry patch blocked"
+	):
+		return false
+	main.inventory.import_state(_inventory_state([
+		{"id": main.GREEN_SEED, "count": 64},
+		{"id": main.SMALL_SEED, "count": 64},
+		{"id": main.ORANGE_SEED, "count": 64},
+		{"id": main.PEA_DROP, "count": 64},
+		{"id": main.CACTUS_DROP, "count": 64},
+	]))
+	main.world.restore_state({})
+	if not _expect(
+		_fill_world_drops(main),
+		"Could not fill ground drops for the retry-seed capacity probe"
+	):
+		return false
+	main._return_failed_boss_seed(main.SAXAUL_SEED, Vector2(420.0, 420.0))
+	var retry_seed_drop_count := 0
+	for drop in main.world.drops:
+		if str(drop.get("item_id", "")) == main.SAXAUL_SEED:
+			retry_seed_drop_count += 1
+	if not _expect(
+		main.world.drops.size() == MeadowWorld.MAX_DROPS
+		and retry_seed_drop_count == 1,
+		"Full inventory and ground capacity lost the failed-boss retry seed"
+	):
+		return false
+	main.world.restore_state({})
+	game_state.defeated_boss_ids.clear()
+	main.quest_state = main.QUEST_AWAITING_PLANT
+	green = main.map_host.activate_map(&"greenmeadow")
+	if not _expect(
+		green != null,
+		"Could not restore Greenmeadow after the Saxaul retry probe"
+	):
+		return false
+	main._bind_active_map(green)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	main.map_host.set_runtime_suspended(false)
+	var particle_children_before := main.world.get_child_count()
+	main.player.global_position = Vector2(760.0, 520.0)
+	main._play_boss_death_feedback(Vector2(240.0, 220.0))
+	var particles: Array[Polygon2D] = []
+	for child in main.world.get_children():
+		if child is Polygon2D \
+		and child.color == Color("#69e58a"):
+			particles.append(child)
+	if not _expect(
+		main.world.get_child_count() == particle_children_before + 20
+		and particles.size() == 20,
+		"Boss death feedback did not create twenty green particles"
+	):
+		return false
+	var particle_starts: Array[Vector2] = []
+	for particle in particles:
+		particle_starts.append(particle.global_position)
+	await create_timer(1.9).timeout
+	for index in range(particles.size()):
+		if not _expect(
+			is_instance_valid(particles[index])
+			and particles[index].global_position.is_equal_approx(
+				particle_starts[index]
+			),
+			"Boss death particle moved before the two-second hold ended"
+		):
+			return false
+	await create_timer(0.2).timeout
+	var particle_started_homing := false
+	for index in range(particles.size()):
+		if is_instance_valid(particles[index]) \
+		and not particles[index].global_position.is_equal_approx(
+			particle_starts[index]
+		):
+			particle_started_homing = true
+			break
+	if not _expect(
+		particle_started_homing,
+		"Boss death particles did not home toward the player after two seconds"
+	):
+		return false
+	await create_timer(0.55).timeout
 	return true
 
 func _test_cross_map_death_reset(main: MeadowMain, game_state: Node) -> bool:
@@ -607,46 +1295,89 @@ func _test_capacity_transactions(main: MeadowMain) -> bool:
 	main.map_host.set_runtime_suspended(false)
 	return true
 
-func _test_quest_relic_fallbacks(main: MeadowMain) -> bool:
+func _test_bosses_drop_no_task_items(main: MeadowMain) -> bool:
 	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
 	main.inventory.import_state(_inventory_state([
 		{"id": "hoe", "count": 1},
 		{"id": "green_seed", "count": 64},
-		{"id": "yellow_ball", "count": 1},
-		{"id": "melee_weapon", "count": 1},
-		{"id": "", "count": 0},
-	]))
-	var water_position := main.world.cell_to_world(Vector2i(28, 4))
-	var inventory_result := main._grant_quest_relic(water_position)
-	if not _expect(inventory_result == "inventory" and main.inventory.has_item(main.QUEST_ITEM_1), "Full ground did not fall back to inventory for the quest relic"):
-		return false
-	if not _expect(main.world.drops.size() == MeadowWorld.MAX_DROPS, "Inventory relic fallback changed the full ground list"):
-		return false
-	main.inventory.import_state(_inventory_state([
-		{"id": "hoe", "count": 1},
-		{"id": "green_seed", "count": 64},
-		{"id": "yellow_ball", "count": 1},
+		{"id": "bow", "count": 1},
 		{"id": "melee_weapon", "count": 1},
 		{"id": "blue_seed", "count": 1},
 	]))
-	var oldest_drop: Dictionary = main.world.drops[0].duplicate(true)
-	var replacement_result := main._grant_quest_relic(water_position)
-	if not _expect(replacement_result == "replaced", "Double-full relic grant did not replace the oldest ground item"):
+	main.quest_state = main.QUEST_MONSTER_ACTIVE
+	var game_state := main.get_node("/root/GameState")
+	game_state.defeated_boss_ids.erase(main.BOSS_LAKE)
+	var drops_before: Array = main.world.drops.duplicate(true)
+	var inventory_before := main.inventory.export_state()
+	main._on_lake_monster_died(main.player.global_position)
+	if not _expect(main.world.drops == drops_before, "Lake boss death created a ground task item"):
 		return false
-	if not _expect(main.world.drops.size() == MeadowWorld.MAX_DROPS, "Double-full relic replacement exceeded the drop cap"):
+	if not _expect(main.inventory.export_state() == inventory_before, "Lake boss death inserted a task item into inventory"):
 		return false
-	if not _expect(oldest_drop not in main.world.drops, "Double-full relic grant did not replace the oldest ground item"):
+	if not _expect(game_state.has_defeated_boss(main.BOSS_LAKE), "Lake boss death did not record its completion"):
 		return false
-	var relic_count := 0
-	var relic_position := Vector2.ZERO
-	for drop in main.world.drops:
-		if str(drop.get("item_id", "")) == main.QUEST_ITEM_1:
-			relic_count += 1
-			relic_position = drop.get("position", Vector2.ZERO)
-	if not _expect(relic_count == 1, "Double-full relic replacement did not preserve exactly one relic"):
+	var shore := main.map_host.activate_map(&"sunset_shore")
+	if not _expect(
+		shore != null,
+		"Could not activate Sunset Shore for the Saxaul death-drop probe"
+	):
 		return false
-	if not _expect(main.world.is_position_walkable(relic_position), "Quest relic fallback was not relocated to walkable terrain"):
+	main._bind_active_map(shore)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
+	game_state.defeated_boss_ids.erase(main.BOSS_SAXAUL)
+	var boss_cell := Vector2i(12, 12)
+	var boss_patch := main.world.convert_saxaul_patch_to_grass(boss_cell)
+	if not _expect(
+		boss_patch.size() == 9,
+		"Could not prepare the Saxaul death-drop probe"
+	):
 		return false
+	var boss := main._create_saxaul_boss(boss_cell, {
+		"health": MeadowSaxaulBoss.MAX_HEALTH,
+		"age": MeadowSaxaulBoss.GROW_TIME,
+		"mature": true,
+		"spawn_grace_remaining": 0.0,
+	})
+	if not _expect(
+		is_instance_valid(boss),
+		"Could not create the Saxaul death-drop probe"
+	):
+		return false
+	drops_before = main.world.drops.duplicate(true)
+	inventory_before = main.inventory.export_state()
+	if not _expect(
+		boss.take_damage(MeadowSaxaulBoss.MAX_HEALTH),
+		"Saxaul boss did not accept lethal damage"
+	):
+		return false
+	if not _expect(
+		main.world.drops == drops_before,
+		"Saxaul boss death created a ground task item"
+	):
+		return false
+	if not _expect(
+		main.inventory.export_state() == inventory_before,
+		"Saxaul boss death inserted a task item into inventory"
+	):
+		return false
+	if not _expect(
+		game_state.has_defeated_boss(main.BOSS_SAXAUL),
+		"Saxaul boss death did not record its completion"
+	):
+		return false
+	var green := main.map_host.activate_map(&"greenmeadow")
+	if not _expect(
+		green != null,
+		"Could not restore Greenmeadow after the Saxaul death-drop probe"
+	):
+		return false
+	main._bind_active_map(green)
+	main.map_host.set_runtime_suspended(true)
+	main.world.restore_state({})
+	_clear_runtime_entities(main)
 	main.map_host.set_runtime_suspended(false)
 	return true
 
@@ -702,6 +1433,7 @@ func _clear_runtime_entities(main: MeadowMain) -> void:
 		child.free()
 	main.plant_entities.clear()
 	main.lake_monster = null
+	main.saxaul_boss = null
 
 func _inventory_state(slots: Array[Dictionary]) -> Dictionary:
 	return {"slots": slots, "selected_slot": 0}

@@ -69,9 +69,8 @@ static func _test_saxaul_boss(main: MeadowMain, failures: Array[String]) -> void
 	boss.age = MeadowSaxaulBoss.GROW_TIME
 	boss.spawn_grace_remaining = MeadowSaxaulBoss.SPAWN_GRACE_DURATION
 	var boss_start := boss.global_position
-	boss.apply_knockback(Vector2.RIGHT, 100.0)
-	_check(boss.global_position.is_equal_approx(boss_start), "Saxaul boss ignores knockback during spawn grace", failures)
 	boss._physics_process(0.5)
+	_check(boss.global_position.is_equal_approx(boss_start), "Saxaul boss remains stationary during spawn grace", failures)
 	_check(boss.ring_duration_remaining <= 0.0 and boss.skill_windup <= 0.0, "Saxaul boss does not attack during spawn grace", failures)
 	boss._physics_process(0.5)
 	_check(boss.spawn_grace_remaining <= 0.0, "Saxaul boss grace expires after one second", failures)

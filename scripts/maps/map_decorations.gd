@@ -2,6 +2,15 @@ class_name MeadowMapDecorations
 extends Node2D
 ## Draws authored map props above the editable terrain TileMap.
 
+const PEA_TEXTURE := preload("res://image/Monster_pea/Bean.png")
+const PEA_WAIT_TEXTURE := preload(
+	"res://image/Monster_pea/ball-wait-Sheet.png"
+)
+const WORM_TEXTURE := preload("res://image/worm/worm-Sheet.png")
+const SUNFLOWER_TEXTURE := preload(
+	"res://image/NPC/Sprite-0005-Sheet.png"
+)
+
 @export var world_path: NodePath = NodePath("..")
 @onready var world: MeadowWorld = get_node(world_path) as MeadowWorld
 
@@ -62,11 +71,47 @@ func _draw_prop(prop: Dictionary) -> void:
 			draw_line(center + Vector2(6, 3), center + Vector2(13, 13), Color("#8b633f"), 2.0)
 			draw_circle(center + Vector2(15, 14), 3.0, Color("#6fcfe1"))
 		"ranger":
-			_draw_flat_ellipse(center + Vector2(0, 10), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
-			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
-			draw_rect(Rect2(center + Vector2(-13, -13), Vector2(26, 7)), Color("#b56b3b"), true)
-			draw_rect(Rect2(center + Vector2(-10, -18), Vector2(20, 7)), Color("#b56b3b"), true)
-			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#3e7650"), 8.0)
+			var frame := int(Time.get_ticks_msec() / 180) % 4
+			var source := Rect2(frame * 64, 0, 64, 64)
+			draw_texture_rect_region(
+				SUNFLOWER_TEXTURE,
+				Rect2(center - Vector2(32, 48), Vector2(64, 64)),
+				source
+			)
+		"pea_npc":
+			if world.pea_npc_phase == 1:
+				var frame := mini(
+					MeadowWorld.WORM_FRAME_COUNT - 1,
+					int(
+						world.pea_npc_transform_elapsed
+						/ MeadowWorld.WORM_FRAME_DURATION
+					)
+				)
+				var source := Rect2(
+					frame * MeadowWorld.WORM_FRAME_WIDTH,
+					0,
+					MeadowWorld.WORM_FRAME_WIDTH,
+					32
+				)
+				draw_texture_rect_region(
+					WORM_TEXTURE,
+					Rect2(
+						center - Vector2(32, 16),
+						Vector2(64, 32)
+					),
+					source
+				)
+			else:
+				var frame := int(Time.get_ticks_msec() / 420) % 2
+				var source := Rect2(frame * 67, 0, 67, 49)
+				draw_texture_rect_region(
+					PEA_WAIT_TEXTURE,
+					Rect2(
+						center - Vector2(34, 25),
+						Vector2(67, 49)
+					),
+					source
+				)
 		"lookout":
 			draw_line(center + Vector2(0, 10), center + Vector2(0, -14), Color("#5a4938"), 3.0)
 			draw_colored_polygon(PackedVector2Array([center + Vector2(0, -14), center + Vector2(18, -9), center + Vector2(0, -4)]), Color("#d5b15f"))
@@ -126,12 +171,19 @@ func _draw_drop(drop: Dictionary) -> void:
 	var item_id := str(drop.get("item_id", ""))
 	var position: Vector2 = drop["position"]
 	draw_circle(position + Vector2(0, 3), 8.0, Color(0.05, 0.1, 0.1, 0.3))
-	var base_color := Color("#f3c969")
-	match item_id:
-		"pea_drop": base_color = Color("#59b35b")
-		"mutated_pea_drop": base_color = Color("#f3c969")
-		"cactus_drop": base_color = Color("#e77a32")
-	draw_circle(position, 6.0, base_color if available else Color(base_color, 0.35))
+	if item_id == "pea_drop":
+		draw_texture_rect(
+			PEA_TEXTURE,
+			Rect2(position - Vector2(12, 12), Vector2(24, 24)),
+			false,
+			Color(1.0, 1.0, 1.0, 1.0 if available else 0.35)
+		)
+	else:
+		var base_color := Color("#f3c969")
+		match item_id:
+			"mutated_pea_drop": base_color = Color("#f3c969")
+			"cactus_drop": base_color = Color("#e77a32")
+		draw_circle(position, 6.0, base_color if available else Color(base_color, 0.35))
 	if not available:
 		draw_arc(position, 10.0, 0.0, TAU, 24, Color(0.95, 0.78, 0.4, 0.45), 1.0)
 

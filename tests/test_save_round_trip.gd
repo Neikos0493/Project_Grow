@@ -24,6 +24,84 @@ static func run(game_state: Node) -> Array[String]:
 	var parsed: Variant = JSON.parse_string(JSON.stringify(payload))
 	var normalized: Dictionary = game_state._normalize_save(parsed) if parsed is Dictionary else {}
 	_check(not normalized.is_empty(), "Valid save survives a JSON round trip", failures)
+	if not normalized.is_empty():
+		_check(is_zero_approx(float(normalized["global"].get("pea_npc_transform_elapsed", -1.0))), "Default pea transformation progress survives normalization", failures)
+	var transforming_payload := payload.duplicate(true)
+	transforming_payload["global"]["pea_npc_state"] = 1
+	transforming_payload["global"]["pea_npc_transform_elapsed"] = 0.64
+	var normalized_transforming: Dictionary = game_state._normalize_save(transforming_payload)
+	_check(not normalized_transforming.is_empty(), "In-progress pea transformation save is accepted", failures)
+	if not normalized_transforming.is_empty():
+		_check(is_equal_approx(float(normalized_transforming["global"].get("pea_npc_transform_elapsed", 0.0)), 0.64), "Pea transformation progress survives normalization", failures)
+	var legacy_transforming_payload := payload.duplicate(true)
+	legacy_transforming_payload["global"]["pea_npc_state"] = 1
+	legacy_transforming_payload["global"].erase("pea_npc_transform_elapsed")
+	var normalized_legacy_transforming: Dictionary = game_state._normalize_save(legacy_transforming_payload)
+	_check(not normalized_legacy_transforming.is_empty(), "Legacy pea transformation save is accepted", failures)
+	if not normalized_legacy_transforming.is_empty():
+		_check(is_equal_approx(float(normalized_legacy_transforming["global"].get("pea_npc_transform_elapsed", 0.0)), MeadowWorld.WORM_TRANSFORM_DURATION), "Legacy transformed pea defaults to its final frame", failures)
+	var inconsistent_idle_payload := payload.duplicate(true)
+	inconsistent_idle_payload["global"]["pea_npc_state"] = 0
+	inconsistent_idle_payload["global"]["pea_npc_transform_elapsed"] = 0.64
+	var normalized_idle: Dictionary = game_state._normalize_save(inconsistent_idle_payload)
+	_check(not normalized_idle.is_empty(), "Idle pea state with stale progress is accepted", failures)
+	if not normalized_idle.is_empty():
+		_check(is_zero_approx(float(normalized_idle["global"].get("pea_npc_transform_elapsed", -1.0))), "Idle pea state clears stale transformation progress", failures)
+	var inconsistent_complete_payload := payload.duplicate(true)
+	inconsistent_complete_payload["global"]["pea_npc_state"] = 2
+	inconsistent_complete_payload["global"]["pea_npc_transform_elapsed"] = 0.0
+	var normalized_complete: Dictionary = game_state._normalize_save(inconsistent_complete_payload)
+	_check(not normalized_complete.is_empty(), "Completed pea state with stale progress is accepted", failures)
+	if not normalized_complete.is_empty():
+		_check(is_equal_approx(float(normalized_complete["global"].get("pea_npc_transform_elapsed", 0.0)), MeadowWorld.WORM_TRANSFORM_DURATION), "Completed pea state is pinned to the final frame", failures)
+	var legacy_weapon_payload := payload.duplicate(true)
+	legacy_weapon_payload["global"]["inventory"]["slots"][0] = {
+		"id": "yellow_ball",
+		"count": 1,
+	}
+	legacy_weapon_payload["maps"]["greenmeadow"]["drops"] = [{
+		"position": [144.0, 144.0],
+		"item_id": "yellow_ball",
+		"count": 1,
+		"pickup_delay_msec": 0,
+	}]
+	var normalized_legacy_weapon: Dictionary = game_state._normalize_save(
+		legacy_weapon_payload
+	)
+	_check(not normalized_legacy_weapon.is_empty(), "Legacy yellow-ball save is accepted", failures)
+	if not normalized_legacy_weapon.is_empty():
+		_check(str(normalized_legacy_weapon["global"]["inventory"]["slots"][0].get("id", "")) == "bow", "Legacy inventory weapon migrates to the bow", failures)
+		_check(str(normalized_legacy_weapon["maps"]["greenmeadow"]["drops"][0].get("item_id", "")) == "bow", "Legacy dropped weapon migrates to the bow", failures)
+	var legacy_task_item_payload := payload.duplicate(true)
+	legacy_task_item_payload["global"]["inventory"]["slots"][0] = {
+		"id": "quest_item_1",
+		"count": 1,
+	}
+	legacy_task_item_payload["maps"]["greenmeadow"]["drops"] = [{
+		"position": [144.0, 144.0],
+		"item_id": "quest_item_1",
+		"count": 1,
+		"pickup_delay_msec": 0,
+	}]
+	var normalized_legacy_task_item: Dictionary = game_state._normalize_save(
+		legacy_task_item_payload
+	)
+	_check(
+		not normalized_legacy_task_item.is_empty(),
+		"Legacy boss-task-item save is accepted",
+		failures
+	)
+	if not normalized_legacy_task_item.is_empty():
+		_check(
+			str(normalized_legacy_task_item["global"]["inventory"]["slots"][0].get("id", "")).is_empty(),
+			"Legacy boss task item is removed from inventory",
+			failures
+		)
+		_check(
+			normalized_legacy_task_item["maps"]["greenmeadow"]["drops"].is_empty(),
+			"Legacy boss task item is removed from ground drops",
+			failures
+		)
 	var invalid: Dictionary = payload.duplicate(true)
 	invalid["current_map_id"] = "res://MainPond.tscn"
 	_check(game_state._normalize_save(invalid).is_empty(), "Scene paths cannot be injected as map IDs", failures)

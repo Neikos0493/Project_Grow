@@ -12,8 +12,11 @@ const CARD_HOVER_COLOR := Color("#634431")
 const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
-const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
 const BEAN_SEED_TEXTURE := preload("res://image/shop/beanSeed.png")
+const BOW_TEXTURE := preload("res://assets/generated/weapons/forest_bow.png")
+const TREE_GUN_TEXTURE := preload("res://assets/generated/weapons/tree_gun.png")
+const BOW_SOURCE_RECT := Rect2(377, 8, 286, 821)
+const GUN_SOURCE_RECT := Rect2(40, 311, 330, 245)
 
 @onready var product_hitboxes: Control = $ProductHitboxes
 @onready var scroll_bar: HScrollBar = $ProductScrollBar
@@ -57,9 +60,8 @@ func is_shop_product(item_id: String) -> bool:
 	return item_id in _visible_product_ids()
 
 func _visible_product_ids() -> Array[String]:
-	var ids: Array[String] = ["hoe", "bean_seed", "green_seed", "melee_weapon"]
+	var ids: Array[String] = ["bean_seed", "green_seed", "melee_weapon", "bow", "tree_gun"]
 	if beach_shop:
-		ids.append("yellow_ball")
 		ids.append("orange_seed")
 		ids.append("sunglasses")
 	return ids
@@ -117,9 +119,6 @@ func _draw_product(item_id: String, card: Rect2) -> void:
 	var icon_center := card.position + Vector2(card.size.x * 0.5, 29.0)
 	_draw_item_icon(icon_center, str(definition.get("icon", "")))
 	var font := ThemeDB.fallback_font
-	var item_name := inventory.get_item_name(item_id)
-	var name_width := card.size.x - 10.0
-	draw_string(font, Vector2(card.position.x + 5.0, card.position.y + 55.0), item_name, HORIZONTAL_ALIGNMENT_CENTER, name_width, 11, Color("#f4e9c9"))
 	_draw_price(card, inventory.get_buy_price(item_id))
 
 func _draw_price(card: Rect2, price: int) -> void:
@@ -134,11 +133,10 @@ func _draw_price(card: Rect2, price: int) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_item_icon(center: Vector2, icon: String) -> void:
-	if icon == "yellow_ball":
-		draw_circle(center + Vector2(0, 3), 25.0, Color(0.12, 0.06, 0.04, 0.5))
-		draw_circle(center, 22.0, Color("#26353b"))
-		draw_circle(center, 19.0, Color("#f3c969"))
-		draw_circle(center + Vector2(-6, -7), 5.0, Color(1.0, 0.96, 0.72, 0.85))
+	if icon == "bow":
+		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - Vector2(28, 28), Vector2(56, 56)), BOW_SOURCE_RECT)
+	elif icon == "tree_gun":
+		draw_texture_rect_region(TREE_GUN_TEXTURE, Rect2(center - Vector2(30, 30), Vector2(60, 60)), GUN_SOURCE_RECT)
 	elif icon == "bean_seed":
 		var bean_icon_size := Vector2(30.0, 30.0)
 		draw_texture_rect(BEAN_SEED_TEXTURE, Rect2(center - bean_icon_size * 0.5, bean_icon_size), false)
@@ -154,9 +152,6 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_circle(center + Vector2(0, 2), 15.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 13.0, Color("#e77a32"))
 		draw_circle(center + Vector2(-4, -4), 3.5, Color("#ffd080"))
-	elif icon == "hoe":
-		var icon_size := Vector2(52.0, 52.0 * HOE_TEXTURE.get_height() / HOE_TEXTURE.get_width())
-		draw_texture_rect(HOE_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)
 	elif icon == "plant":
 		draw_line(center + Vector2(0, 12), center + Vector2(0, -6), Color("#24523a"), 4.0)
 		draw_circle(center + Vector2(-6, -6), 7.0, Color("#4d9b55"))

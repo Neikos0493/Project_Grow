@@ -8,6 +8,7 @@ script = ExtResource("1_map")
 [node name="Runtime" type="Node2D" parent="."]
 
 [node name="Projectiles" type="Node2D" parent="Runtime"]
+z_index = 20
 
 [node name="Plants" type="Node2D" parent="Runtime"]
 z_index = 6

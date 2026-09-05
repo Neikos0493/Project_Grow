@@ -15,8 +15,8 @@ const ITEM_DEFINITIONS := {
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "hoe",
-		"sell_price": 2,
-		"buy_price": 5,
+		"sell_price": 0,
+		"buy_price": 0,
 		"description": "Tills nearby grass into plantable soil.",
 	},
 	"green_seed": {
@@ -39,7 +39,7 @@ const ITEM_DEFINITIONS := {
 		"icon": "bean_seed",
 		"sell_price": 2,
 		"buy_price": 5,
-		"description": "A seed that may grow into something unexpected.",
+		"description": "A smaller seed that always grows an ordinary green pea plant.",
 	},
 	"sunglasses": {
 		"name": "Sunglasses",
@@ -52,16 +52,27 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 25,
 		"description": "A pair of shades for the desert sun.",
 	},
-	"yellow_ball": {
-		"name": "Yellow Ball",
+	"bow": {
+		"name": "Forestwood Bow",
 		"consumable": false,
-		"droppable": true,
+		"droppable": false,
 		"show_count": false,
 		"max_stack": 1,
-		"icon": "yellow_ball",
-		"sell_price": 25,
-		"buy_price": 50,
-		"description": "Launches a bright projectile through the meadow.",
+		"icon": "bow",
+		"sell_price": 0,
+		"buy_price": 120,
+		"description": "A wooden bow that fires arrows without ammunition.",
+	},
+	"tree_gun": {
+		"name": "神树",
+		"consumable": false,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "tree_gun",
+		"sell_price": 0,
+		"buy_price": 240,
+		"description": "A living gun that charges a boundary-crossing laser.",
 	},
 	"melee_weapon": {
 		"name": "The Village's Best Sword",
@@ -95,17 +106,6 @@ const ITEM_DEFINITIONS := {
 		"sell_price": 0,
 		"buy_price": 0,
 		"description": "Plant it in the pond to awaken something ancient.",
-	},
-	"quest_item_1": {
-		"name": "Quest Relic 1",
-		"consumable": false,
-		"droppable": false,
-		"show_count": false,
-		"max_stack": 1,
-		"icon": "quest_item_1",
-		"sell_price": 0,
-		"buy_price": 0,
-		"description": "A strange relic left behind by the lake monster.",
 	},
 	"pea_drop": {
 		"name": "Pea",
@@ -261,7 +261,8 @@ func get_item_name(item_id: String) -> String:
 			"green_seed": return "个头稍大的种子"
 			"bean_seed": return "个头稍小的种子"
 			"sunglasses": return "墨镜"
-			"yellow_ball": return "黄色球"
+			"bow": return "森木林弓"
+			"tree_gun": return "神树"
 			"melee_weapon": return "村里最好的剑"
 			"pea_drop": return "豌豆"
 			"mutated_pea_drop": return "金色豌豆"
@@ -271,7 +272,6 @@ func get_item_name(item_id: String) -> String:
 			"plant": return "植物"
 			"orange_seed": return "橙色种子"
 			"blue_seed": return "蓝色种子"
-			"quest_item_1": return "任务道具 1"
 	return str(get_item_definition(item_id).get("name", item_id))
 
 func get_item_description(item_id: String) -> String:
@@ -279,9 +279,10 @@ func get_item_description(item_id: String) -> String:
 		match item_id:
 			"hoe": return "将附近的草地翻耕成可种植的土地。"
 			"green_seed": return "或许能种出些不一般的东西"
-			"bean_seed": return "不知道能种出些什么东西"
+			"bean_seed": return "只能长成普通的绿色豌豆植株。"
 			"sunglasses": return "给沙漠里的太阳戴上墨镜。"
-			"yellow_ball": return "向草甸发射明亮的投射物。"
+			"bow": return "无需弹药即可持续射出箭矢。"
+			"tree_gun": return "蓄力一秒后发射穿越边界的绿色激光。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
 			"pea_drop": return "或许能吃"
 			"mutated_pea_drop": return "湖之守望者需要的稀有金色豌豆。"
@@ -291,7 +292,6 @@ func get_item_description(item_id: String) -> String:
 			"plant": return "成熟植物，可以在商店出售。"
 			"orange_seed": return "种在沙地上，长成会发射扇形弹幕的仙人掌。"
 			"blue_seed": return "只能种在水里，会唤醒湖中的古老生物。"
-			"quest_item_1": return "湖中怪物留下的任务道具。"
 	return str(get_item_definition(item_id).get("description", ""))
 
 func is_consumable(item_id: String) -> bool:
@@ -355,6 +355,21 @@ func try_add(item_id: String, amount: int = 1) -> bool:
 			inventory_changed.emit()
 			return true
 	return false
+
+func try_add_to_slot(item_id: String, amount: int, slot_index: int) -> bool:
+	if not ITEM_DEFINITIONS.has(item_id) or amount <= 0 or slot_index < 0 or slot_index >= slots.size():
+		return false
+	var slot := slots[slot_index]
+	var existing_id := str(slot.get("id", ""))
+	var existing_count := int(slot.get("count", 0))
+	if not existing_id.is_empty() and existing_id != item_id:
+		return false
+	if existing_count + amount > get_item_max_stack(item_id):
+		return false
+	slot["id"] = item_id
+	slot["count"] = existing_count + amount
+	inventory_changed.emit()
+	return true
 
 func try_exchange(remove_item_id: String, add_item_id: String, amount: int = 1) -> bool:
 	if remove_item_id.is_empty() or add_item_id.is_empty() or amount <= 0:

@@ -19,7 +19,13 @@ const MAX_DROPS := 256
 const MAX_PERSISTED_PLANTS := 256
 const PEA_WAIT_TEXTURE := preload("res://image/Monster_pea/ball-wait-Sheet.png")
 const SUNFLOWER_TEXTURE := preload("res://image/NPC/Sprite-0005-Sheet.png")
-const WORM_WAIT_TEXTURE := preload("res://image/worm/worm-wait-Sheet.png")
+const WORM_TEXTURE := preload("res://image/worm/worm-Sheet.png")
+const WORM_FRAME_COUNT := 8
+const WORM_FRAME_WIDTH := 64
+const WORM_FRAME_DURATION := 0.16
+const WORM_TRANSFORM_DURATION := (
+	WORM_FRAME_COUNT * WORM_FRAME_DURATION
+)
 
 const GRASS := 0
 const DIRT := 1
@@ -55,7 +61,6 @@ var _is_restoring := false
 var enable_pea_npc := false
 var pea_npc_phase := 0
 var pea_npc_transform_elapsed := 0.0
-const WORM_TEXTURE := preload("res://image/worm/worm-Sheet.png")
 
 func _ready() -> void:
 	_build_map()
@@ -167,7 +172,10 @@ func set_pea_npc_phase(value: int) -> void:
 func advance_pea_npc_transform(delta: float) -> void:
 	if pea_npc_phase != 1:
 		return
-	pea_npc_transform_elapsed = minf(1.28, pea_npc_transform_elapsed + delta)
+	pea_npc_transform_elapsed = minf(
+		WORM_TRANSFORM_DURATION,
+		pea_npc_transform_elapsed + delta
+	)
 	queue_redraw()
 
 func get_camera_top_limit() -> int:
@@ -209,7 +217,59 @@ func get_disembark_end_position() -> Vector2:
 	return get_nearest_walkable_position(preferred_landing)
 
 func is_position_walkable(map_position: Vector2) -> bool:
-	return is_map_position_in_bounds(map_position) and is_walkable(world_to_cell(map_position))
+	return is_map_position_in_bounds(map_position) \
+		and is_walkable(world_to_cell(map_position))
+
+func is_position_unoccupied(map_position: Vector2) -> bool:
+	return is_position_walkable(map_position) \
+		and not _is_prop_cell(world_to_cell(map_position))
+
+func is_prop_cell(cell: Vector2i) -> bool:
+	return _is_prop_cell(cell)
+
+func is_valid_farm_cell(cell: Vector2i, kind: String = "") -> bool:
+	if not _is_in_bounds(cell) or _is_prop_cell(cell):
+		return false
+	if kind == "orange_cactus":
+		return supports_orange_farming() \
+			and cells[cell.y][cell.x] == SAND
+	return cells[cell.y][cell.x] == GRASS
+
+func get_nearest_valid_farm_cell(
+	origin: Vector2i,
+	kind: String = "",
+	reserved_cells: Dictionary = {},
+	additional_grass: Dictionary = {},
+	allow_shore_sand := false
+) -> Vector2i:
+	for radius in range(maxi(MAP_SIZE.x, MAP_SIZE.y)):
+		for y in range(origin.y - radius, origin.y + radius + 1):
+			for x in range(origin.x - radius, origin.x + radius + 1):
+				if radius > 0 \
+				and x > origin.x - radius \
+				and x < origin.x + radius \
+				and y > origin.y - radius \
+				and y < origin.y + radius:
+					continue
+				var cell := Vector2i(x, y)
+				var valid_cell := is_valid_farm_cell(cell, kind)
+				if kind != "orange_cactus" \
+				and additional_grass.has(cell) \
+				and _is_in_bounds(cell) \
+				and not _is_prop_cell(cell):
+					valid_cell = true
+				if kind.is_empty() \
+				and allow_shore_sand \
+				and supports_orange_farming() \
+				and _is_in_bounds(cell) \
+				and cells[cell.y][cell.x] == SAND \
+				and not _is_prop_cell(cell):
+					valid_cell = true
+				if valid_cell \
+				and not farm_tiles.has(cell) \
+				and not reserved_cells.has(cell):
+					return cell
+	return Vector2i(-1, -1)
 
 func is_map_position_in_bounds(map_position: Vector2) -> bool:
 	if not is_finite(map_position.x) or not is_finite(map_position.y):
@@ -245,7 +305,9 @@ func _is_in_bounds(cell: Vector2i) -> bool:
 func is_walkable(cell: Vector2i) -> bool:
 	if not _is_in_bounds(cell) or cells.size() != MAP_SIZE.y:
 		return false
-	return cells[cell.y][cell.x] != WATER and cells[cell.y][cell.x] != ROCK
+	return cells[cell.y][cell.x] != WATER \
+		and cells[cell.y][cell.x] != ROCK \
+		and cells[cell.y][cell.x] != CLIFF
 
 func _set_rock_cluster(cluster: Array[Vector2i]) -> void:
 	for cell in cluster:
@@ -290,11 +352,27 @@ func get_pointer_cell(mouse_map_position: Vector2, player_map_position: Vector2,
 		return Vector2i(-1, -1)
 	return cell
 
+func till_nearby(player_map_position: Vector2) -> int:
+	var center := world_to_cell(player_map_position)
+	var tilled_count := 0
+	for y in range(center.y - 1, center.y + 2):
+		for x in range(center.x - 1, center.x + 2):
+			if _till_without_signal(Vector2i(x, y)):
+				tilled_count += 1
+	if tilled_count > 0:
+		_state_did_change()
+	return tilled_count
+
 func till(cell: Vector2i) -> bool:
+	if not _till_without_signal(cell):
+		return false
+	_state_did_change()
+	return true
+
+func _till_without_signal(cell: Vector2i) -> bool:
 	if not _is_in_bounds(cell) or cells[cell.y][cell.x] != GRASS or farm_tiles.has(cell) or _is_prop_cell(cell):
 		return false
 	farm_tiles[cell] = {"state": FARM_TILLED}
-	_state_did_change()
 	return true
 
 func plant_seed(cell: Vector2i) -> bool:
@@ -346,6 +424,24 @@ func convert_saxaul_patch_to_grass(center: Vector2i) -> Array[Vector2i]:
 	if not converted.is_empty():
 		_state_did_change()
 	return converted
+
+func revert_saxaul_patch_to_sand(
+	center: Vector2i,
+	occupied_cells: Dictionary = {}
+) -> void:
+	var reverted := false
+	for y in range(center.y - 1, center.y + 2):
+		for x in range(center.x - 1, center.x + 2):
+			var cell := Vector2i(x, y)
+			if not permanent_grass.has(cell) \
+			or farm_tiles.has(cell) \
+			or occupied_cells.has(cell):
+				continue
+			permanent_grass.erase(cell)
+			cells[cell.y][cell.x] = SAND
+			reverted = true
+	if reverted:
+		_state_did_change()
 
 func apply_permanent_grass(entries: Array) -> void:
 	if not supports_saxaul_encounter():
@@ -732,7 +828,7 @@ func _create_collisions() -> void:
 			var cell := Vector2i(x, y)
 			if cells[y][x] == WATER:
 				_add_rectangle_collision(water_collisions, cell_to_world(cell), Vector2(TILE_SIZE, TILE_SIZE))
-			elif cells[y][x] == ROCK:
+			elif cells[y][x] == ROCK or cells[y][x] == CLIFF:
 				_add_rectangle_collision(map_collisions, cell_to_world(cell), Vector2(TILE_SIZE, TILE_SIZE))
 	for prop in props:
 		if bool(prop.get("no_collision", false)):
@@ -884,14 +980,25 @@ func _draw_prop(prop: Dictionary) -> void:
 			var source := Rect2(frame * 64, 0, 64, 64)
 			draw_texture_rect_region(SUNFLOWER_TEXTURE, Rect2(center - Vector2(32, 48), Vector2(64, 64)), source)
 		"pea_npc":
-			if pea_npc_phase == 1 and pea_npc_transform_elapsed < 1.28:
-				var worm_frame := mini(15, int(pea_npc_transform_elapsed / 0.08))
-				var worm_source := Rect2(worm_frame * 32, 0, 32, 32)
-				draw_texture_rect_region(WORM_TEXTURE, Rect2(center - Vector2(32, 16), Vector2(64, 32)), worm_source)
-			elif pea_npc_phase == 1:
-				var wait_frame := int(Time.get_ticks_msec() / 420) % 4
-				var wait_source := Rect2(wait_frame * 32, 0, 32, 32)
-				draw_texture_rect_region(WORM_WAIT_TEXTURE, Rect2(center - Vector2(32, 16), Vector2(64, 32)), wait_source)
+			if pea_npc_phase == 1:
+				var worm_frame := mini(
+					WORM_FRAME_COUNT - 1,
+					int(pea_npc_transform_elapsed / WORM_FRAME_DURATION)
+				)
+				var worm_source := Rect2(
+					worm_frame * WORM_FRAME_WIDTH,
+					0,
+					WORM_FRAME_WIDTH,
+					32
+				)
+				draw_texture_rect_region(
+					WORM_TEXTURE,
+					Rect2(
+						center - Vector2(32, 16),
+						Vector2(64, 32)
+					),
+					worm_source
+				)
 			else:
 				var pea_frame := int(Time.get_ticks_msec() / 420) % 2
 				var pea_source := Rect2(pea_frame * 67, 0, 67, 49)

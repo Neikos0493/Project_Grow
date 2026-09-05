@@ -11,6 +11,10 @@ func _initialize() -> void:
 	var map_test: GDScript = load("res://tests/test_map_isolation.gd")
 	var save_test: GDScript = load("res://tests/test_save_round_trip.gd")
 	var enemy_test: GDScript = load("res://tests/test_enemy_grace.gd")
+	if map_test == null or save_test == null or enemy_test == null:
+		push_error("FAIL: One or more regression scripts failed to parse")
+		quit(1)
+		return
 	await process_frame
 	failures.append_array(map_test.run(root))
 	failures.append_array(save_test.run(game_state))

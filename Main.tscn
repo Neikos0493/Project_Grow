@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/map_host.gd" id="2_map_host"]
@@ -11,6 +11,10 @@
 [ext_resource type="Script" path="res://scripts/radar_panel.gd" id="9_radar_panel"]
 [ext_resource type="Script" path="res://scripts/travel_transition.gd" id="10_travel_transition"]
 [ext_resource type="Script" path="res://scripts/dialogue_box.gd" id="11_dialogue_box"]
+[ext_resource type="Texture2D" path="res://assets/generated/bottle/bottle.png" id="12_bottle_empty"]
+[ext_resource type="Texture2D" path="res://assets/generated/bottle/bottle_half.png" id="13_bottle_half"]
+[ext_resource type="Texture2D" path="res://assets/generated/bottle/bottle_full.png" id="14_bottle_full"]
+[ext_resource type="Script" path="res://scripts/held_weapon.gd" id="15_held_weapon"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 9.0
@@ -94,6 +98,10 @@ centered = true
 z_index = 1
 script = ExtResource("9_melee_weapon")
 
+[node name="HeldWeapon" type="Node2D" parent="Player"]
+z_index = 1
+script = ExtResource("15_held_weapon")
+
 [node name="Camera2D" type="Camera2D" parent="Player"]
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
@@ -152,17 +160,6 @@ theme_override_font_sizes/font_size = 16
 text = "COINS  9999"
 horizontal_alignment = 2
 
-[node name="EnergyLabel" type="Label" parent="HUD/TopBar"]
-offset_left = 420.0
-offset_top = 5.0
-offset_right = 680.0
-offset_bottom = 27.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.56, 0.9, 0.72, 1)
-theme_override_font_sizes/font_size = 13
-text = "ENERGY  0/100  TREE  0/100"
-horizontal_alignment = 2
-
 [node name="HealthLabel" type="Label" parent="HUD/TopBar"]
 offset_left = 700.0
 offset_top = 31.0
@@ -174,32 +171,93 @@ theme_override_font_sizes/font_size = 14
 text = "HP  5/5"
 horizontal_alignment = 2
 
-[node name="BossCompletion" type="Control" parent="HUD"]
-offset_left = 756.0
-offset_top = 53.0
-offset_right = 936.0
-offset_bottom = 70.0
+[node name="BottleButton" type="TextureButton" parent="HUD"]
+z_index = 10
+offset_left = 24.0
+offset_top = 60.0
+offset_right = 64.0
+offset_bottom = 100.0
+mouse_default_cursor_shape = 2
+texture_normal = ExtResource("12_bottle_empty")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="BottleOverlay" type="Control" parent="HUD"]
+visible = false
+z_index = 140
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Dim" type="ColorRect" parent="HUD/BottleOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+color = Color(0.016, 0.035, 0.043, 0.8)
 
-[node name="Label" type="Label" parent="HUD/BossCompletion"]
-offset_left = -78.0
-offset_top = 0.0
-offset_right = -4.0
-offset_bottom = 18.0
+[node name="Bottle" type="TextureRect" parent="HUD/BottleOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -190.0
+offset_top = -170.0
+offset_right = 190.0
+offset_bottom = 85.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("12_bottle_empty")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Message" type="Label" parent="HUD/BottleOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = 105.0
+offset_right = 280.0
+offset_bottom = 180.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
-theme_override_font_sizes/font_size = 10
-text = "BOSS"
-horizontal_alignment = 2
+theme_override_colors/font_outline_color = Color(0.055, 0.11, 0.13, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "世界树的馈赠\n满溢即是新生"
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="Track" type="ColorRect" parent="HUD/BossCompletion"]
+[node name="CloseHint" type="Label" parent="HUD/BottleOverlay"]
+layout_mode = 1
+anchors_preset = 12
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -180.0
+offset_top = -42.0
 offset_right = 180.0
-offset_bottom = 12.0
-color = Color(0.12, 0.16, 0.14, 1)
-
-[node name="Fill" type="ColorRect" parent="HUD/BossCompletion/Track"]
-offset_right = 0.0
-offset_bottom = 12.0
-color = Color(0.25, 0.8, 0.38, 1)
+offset_bottom = -16.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.64, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "单击任意位置关闭"
+horizontal_alignment = 1
 
 [node name="BossBar" type="Control" parent="HUD"]
 z_index = 40
@@ -445,7 +503,7 @@ horizontal_alignment = 2
 
 [node name="DeathOverlay" type="ColorRect" parent="HUD"]
 visible = false
-z_index = 100
+z_index = 160
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

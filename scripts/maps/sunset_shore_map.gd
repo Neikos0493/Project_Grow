@@ -86,7 +86,7 @@ func _build_map() -> void:
 		},
 		{
 			"id": "sunset_shore.ranger",
-			"cell": Vector2i(8, 8),
+			"cell": Vector2i(5, 8),
 			"kind": "ranger",
 			"used": false,
 			"label_en": "Talk to the mysterious sunflower",
@@ -96,7 +96,7 @@ func _build_map() -> void:
 		},
 		{
 			"id": "sunset_shore.pea_npc",
-			"cell": Vector2i(10, 8),
+			"cell": Vector2i(7, 8),
 			"kind": "pea_npc",
 			"used": false,
 			"label_en": "Talk to Pea, maybe?",

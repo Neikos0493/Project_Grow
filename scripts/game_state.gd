@@ -14,18 +14,23 @@ const MAX_DROPS := MeadowWorld.MAX_DROPS
 const MAX_ENTITIES := MeadowWorld.MAX_PERSISTED_PLANTS
 const MAX_COINS := 999999999
 const MAX_HEALTH := 5
+const PEA_TRANSFORM_DURATION := MeadowWorld.WORM_TRANSFORM_DURATION
 const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
 const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore", &"world_tree"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
 const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss"]
+const LEGACY_ITEM_REPLACEMENTS := {
+	"yellow_ball": "bow",
+}
 const KNOWN_ITEM_IDS := {
 	"hoe": 1,
 	"green_seed": 64,
 	"bean_seed": 64,
 	"sunglasses": 1,
 	"orange_seed": 64,
-	"yellow_ball": 1,
+	"bow": 1,
+	"tree_gun": 1,
 	"melee_weapon": 1,
 	"pea_drop": 64,
 	"mutated_pea_drop": 64,
@@ -33,7 +38,6 @@ const KNOWN_ITEM_IDS := {
 	"saxaul_seed": 1,
 	"lily_seed": 1,
 	"blue_seed": 1,
-	"quest_item_1": 1,
 	"plant": 64,
 }
 
@@ -56,6 +60,7 @@ var container_energy := 0
 var sunflower_quest_state := 0
 var map_two_return_count := 0
 var pea_npc_state := 0
+var pea_npc_transform_elapsed := 0.0
 var world_tree_map_unlocked := false
 var energy := 0
 var world_tree_energy := 0
@@ -84,6 +89,7 @@ func reset_session() -> void:
 	sunflower_quest_state = 0
 	map_two_return_count = 0
 	pea_npc_state = 0
+	pea_npc_transform_elapsed = 0.0
 	world_tree_map_unlocked = false
 	energy = 0
 	world_tree_energy = 0
@@ -239,6 +245,7 @@ func _build_save_data() -> Dictionary:
 			"sunflower_quest_state": sunflower_quest_state,
 			"map_two_return_count": map_two_return_count,
 			"pea_npc_state": pea_npc_state,
+			"pea_npc_transform_elapsed": pea_npc_transform_elapsed,
 			"world_tree_map_unlocked": world_tree_map_unlocked,
 			"energy": energy,
 			"world_tree_energy": world_tree_energy,
@@ -324,6 +331,19 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 			return {}
 		if String(boss_id) not in normalized_bosses:
 			normalized_bosses.append(String(boss_id))
+	var normalized_pea_npc_state := clampi(
+		int(data.get("pea_npc_state", 0)),
+		0,
+		2
+	)
+	var normalized_pea_transform_elapsed := 0.0
+	if normalized_pea_npc_state == 1:
+		normalized_pea_transform_elapsed = clampf(float(data.get(
+			"pea_npc_transform_elapsed",
+			PEA_TRANSFORM_DURATION
+		)), 0.0, PEA_TRANSFORM_DURATION)
+	elif normalized_pea_npc_state == 2:
+		normalized_pea_transform_elapsed = PEA_TRANSFORM_DURATION
 	var world_tree_map_unlocked := bool(data.get("world_tree_map_unlocked", false))
 	if not world_tree_blessing_unlocked:
 		unlocked.erase(String(&"sunset_shore"))
@@ -345,7 +365,8 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"container_energy": clampi(int(data.get("container_energy", normalized_bosses.size() * 50)), 0, 100),
 		"sunflower_quest_state": clampi(int(data.get("sunflower_quest_state", 0)), 0, 2),
 		"map_two_return_count": clampi(int(data.get("map_two_return_count", 0)), 0, 2),
-		"pea_npc_state": clampi(int(data.get("pea_npc_state", 0)), 0, 2),
+		"pea_npc_state": normalized_pea_npc_state,
+		"pea_npc_transform_elapsed": normalized_pea_transform_elapsed,
 		"world_tree_map_unlocked": world_tree_map_unlocked,
 		"energy": clampi(int(data.get("energy", 0)), 0, 100),
 		"world_tree_energy": clampi(int(data.get("world_tree_energy", 0)), 0, 100),
@@ -361,8 +382,9 @@ func _normalize_inventory(data: Dictionary) -> Dictionary:
 		if not value is Dictionary:
 			return {}
 		var item_id := str(value.get("id", ""))
+		item_id = str(LEGACY_ITEM_REPLACEMENTS.get(item_id, item_id))
 		var count := int(value.get("count", 0))
-		if item_id.is_empty():
+		if item_id.is_empty() or item_id == "quest_item_1":
 			slots.append({"id": "", "count": 0})
 			continue
 		if not KNOWN_ITEM_IDS.has(item_id) or count <= 0:
@@ -518,8 +540,11 @@ func _normalize_drops(entries: Array) -> Variant:
 		if not value is Dictionary:
 			return null
 		var item_id := str(value.get("item_id", ""))
+		item_id = str(LEGACY_ITEM_REPLACEMENTS.get(item_id, item_id))
 		var position: Variant = _normalize_position(value.get("position", []), null, true)
 		var count := int(value.get("count", 0))
+		if item_id == "quest_item_1":
+			continue
 		if not KNOWN_ITEM_IDS.has(item_id) or position == null or count <= 0:
 			return null
 		result.append({
@@ -779,6 +804,13 @@ func _apply_valid_save(data: Dictionary) -> void:
 	sunflower_quest_state = clampi(int(global_data.get("sunflower_quest_state", 0)), 0, 2)
 	map_two_return_count = clampi(int(global_data.get("map_two_return_count", 0)), 0, 2)
 	pea_npc_state = clampi(int(global_data.get("pea_npc_state", 0)), 0, 2)
+	if pea_npc_state == 1:
+		pea_npc_transform_elapsed = clampf(float(global_data.get(
+			"pea_npc_transform_elapsed",
+			PEA_TRANSFORM_DURATION
+		)), 0.0, PEA_TRANSFORM_DURATION)
+	else:
+		pea_npc_transform_elapsed = PEA_TRANSFORM_DURATION if pea_npc_state == 2 else 0.0
 	world_tree_map_unlocked = bool(global_data.get("world_tree_map_unlocked", false))
 	energy = clampi(int(global_data.get("energy", 0)), 0, 100)
 	world_tree_energy = clampi(int(global_data.get("world_tree_energy", 0)), 0, 100)
@@ -814,7 +846,7 @@ func _boss_ids_to_strings() -> Array[String]:
 func _default_inventory_state() -> Dictionary:
 	return {
 		"slots": [
-			{"id": "hoe", "count": 1},
+			{"id": "", "count": 0},
 			{"id": "green_seed", "count": 6},
 			{"id": "", "count": 0},
 			{"id": "melee_weapon", "count": 1},

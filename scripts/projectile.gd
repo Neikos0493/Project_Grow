@@ -4,6 +4,7 @@ extends Node2D
 
 const SPEED := 420.0
 const LIFETIME := 1.5
+const BEAM_LIFETIME := 0.22
 const RADIUS := 6.0
 const DAMAGE_NUMBER := preload("res://scripts/damage_number.gd")
 const MUTATED_PEA_TEXTURE := preload("res://image/Monster_pea_SP/ball.png")
@@ -22,8 +23,17 @@ var trail_length := 0.0
 var projectile_texture: Texture2D
 var projectile_source_rect := Rect2(0, 0, 0, 0)
 var projectile_display_size := Vector2.ZERO
+var projectile_rotation_offset := 0.0
+var beam_texture: Texture2D
+var beam_source_rects: Array[Rect2] = []
+var beam_display_length := 0.0
+var beam_display_height := 0.0
+var beam_frame := 0
+var beam_frame_elapsed := 0.0
+var beam_animated := false
+var beam_collision_checked := false
 
-func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED, beam_length: float = 0.0, visual_texture: Texture2D = null, visual_source_rect := Rect2(0, 0, 0, 0), visual_display_size := Vector2.ZERO) -> void:
+func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED, beam_length: float = 0.0, visual_texture: Texture2D = null, visual_source_rect := Rect2(0, 0, 0, 0), visual_display_size := Vector2.ZERO, rotation_offset := 0.0, animated_beam := false) -> void:
 	global_position = origin
 	direction = aim.normalized() if aim.length_squared() > 0.001 else Vector2.RIGHT
 	collision_space = space
@@ -36,15 +46,28 @@ func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, targ
 	projectile_texture = visual_texture
 	projectile_source_rect = visual_source_rect
 	projectile_display_size = visual_display_size
+	projectile_rotation_offset = rotation_offset
+	beam_animated = animated_beam
+	beam_frame = 0
+	beam_frame_elapsed = 0.0
+	rotation = direction.angle() + projectile_rotation_offset
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
 	age += delta
-	if age >= LIFETIME:
+	if beam_animated and trail_length > 0.0:
+		beam_frame_elapsed += delta
+		if beam_frame_elapsed >= 0.08:
+			beam_frame_elapsed = 0.0
+			beam_frame = (beam_frame + 1) % 5
+			queue_redraw()
+	if age >= (BEAM_LIFETIME if beam_animated else LIFETIME):
 		queue_free()
 		return
 	var from := global_position
 	var to := from + direction * speed * delta
+	if beam_animated:
+		to = from + direction * trail_length
 	if collision_space != null:
 		var query := PhysicsRayQueryParameters2D.create(from, to)
 		query.collision_mask = collision_mask
@@ -65,17 +88,16 @@ func _physics_process(delta: float) -> void:
 
 func _draw() -> void:
 	if trail_length > 0.0:
-		var local_direction := global_transform.affine_inverse().basis_xform(direction)
-		var local_trail := global_transform.affine_inverse().basis_xform(
-			direction * trail_length
-		)
-		var local_tip := global_transform.affine_inverse().basis_xform(
-			direction * 4.0
-		)
-		if local_direction.length_squared() > 0.0001:
-			local_direction = local_direction.normalized()
-		draw_line(-local_trail, local_tip, Color(0.05, 0.1, 0.1, 0.55), 7.0)
-		draw_line(-local_trail, local_tip, tint, 3.0)
+		var local_direction := direction.rotated(-rotation)
+		var local_trail := local_direction * trail_length
+		var local_tip := local_direction * 4.0
+		if beam_animated and beam_texture != null and beam_source_rects.size() == 5:
+			var frame_rect: Rect2 = beam_source_rects[beam_frame]
+			var beam_rect := Rect2(Vector2(0.0, -7.0), Vector2(trail_length, 14.0))
+			draw_texture_rect_region(beam_texture, beam_rect, frame_rect, tint, false)
+		else:
+			draw_line(-local_trail, local_tip, Color(0.05, 0.1, 0.1, 0.55), 7.0)
+			draw_line(-local_trail, local_tip, tint, 3.0)
 	if projectile_texture != null and projectile_display_size.x > 0.0 and projectile_display_size.y > 0.0 and projectile_source_rect.size.x > 0.0 and projectile_source_rect.size.y > 0.0:
 		var destination := Rect2(-projectile_display_size * 0.5, projectile_display_size)
 		draw_texture_rect_region(projectile_texture, destination, projectile_source_rect)

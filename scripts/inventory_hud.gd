@@ -5,6 +5,10 @@ extends Control
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
 const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
 const BEAN_SEED_TEXTURE := preload("res://image/shop/beanSeed.png")
+const BOW_TEXTURE := preload("res://assets/generated/weapons/forest_bow.png")
+const TREE_GUN_TEXTURE := preload("res://assets/generated/weapons/tree_gun.png")
+const BOW_SOURCE_RECT := Rect2(377, 8, 286, 821)
+const GUN_SOURCE_RECT := Rect2(40, 311, 330, 245)
 
 var inventory: MeadowInventory
 
@@ -55,10 +59,10 @@ func get_slot_at_viewport_position(position: Vector2) -> int:
 
 func _draw_item_icon(center: Vector2, item_id: String) -> void:
 	var icon := str(inventory.get_item_definition(item_id).get("icon", ""))
-	if icon == "yellow_ball":
-		draw_circle(center + Vector2(0, 2), 13.0, Color(0.05, 0.1, 0.1, 0.45))
-		draw_circle(center, 11.0, Color("#f3c969"))
-		draw_circle(center + Vector2(-4, -4), 3.0, Color(1, 0.95, 0.7, 0.75))
+	if icon == "bow":
+		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - Vector2(15, 15), Vector2(30, 30)), BOW_SOURCE_RECT)
+	elif icon == "tree_gun":
+		draw_texture_rect_region(TREE_GUN_TEXTURE, Rect2(center - Vector2(16, 16), Vector2(32, 32)), GUN_SOURCE_RECT)
 	elif icon == "bean_seed":
 		var bean_icon_size := Vector2(25.0, 25.0)
 		draw_texture_rect(BEAN_SEED_TEXTURE, Rect2(center - bean_icon_size * 0.5, bean_icon_size), false)
@@ -80,10 +84,6 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 9.0, Color("#4b9ddd"))
 		draw_circle(center + Vector2(-3, -3), 2.5, Color("#b6e8ff"))
-	elif icon == "quest_item_1":
-		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#b36be0"), true)
-		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#ead3ff"), false, 2.0)
-		draw_circle(center, 3.0, Color("#fff0a8"))
 	elif icon == "pea_drop":
 		var pea_texture := preload("res://image/Monster_pea/Bean.png")
 		draw_texture_rect(pea_texture, Rect2(center - Vector2(14, 14), Vector2(28, 28)), false)

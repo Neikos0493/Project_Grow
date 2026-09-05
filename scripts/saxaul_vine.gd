@@ -3,7 +3,7 @@ extends StaticBody2D
 ## Persistent three-health vine minion spawned by the saxaul boss.
 
 signal laser_requested(origin: Vector2, directions: Array[Vector2])
-signal died(vine: MeadowSaxaulVine)
+signal died(vine: StaticBody2D)
 
 const PLANT_MASK := 4
 const WORLD_MASK := 1

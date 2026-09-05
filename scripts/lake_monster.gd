@@ -15,8 +15,9 @@ const BODY_SIZE := Vector2(64.0, 64.0)
 const MOVE_SPEED := 105.0
 const CHARGE_SPEED := 430.0
 const SPAWN_GRACE_DURATION := 1.0
-const ATTACK_RANGE := 80.0
-const CONTACT_DAMAGE_RANGE := 41.0
+# The sprite is rendered at 64px, so damage must stay inside its visible body.
+const ATTACK_RANGE := 32.0
+const CONTACT_DAMAGE_RANGE := 32.0
 const CONTACT_DAMAGE_COOLDOWN := 0.6
 const ATTACK_FRAME_COUNT := 8
 const ATTACK_FRAME_TIME := 0.08
@@ -34,7 +35,7 @@ const SEED_VOLLEY_HALF_ANGLE := deg_to_rad(60.0)
 const WARNING_DURATION := 0.36
 const VOLLEY_WARNING_DURATION := 0.3
 const WAIT_FPS := 4.0
-const RUSH_WINDUP_DURATION := 0.28
+const RUSH_WINDUP_DURATION := 1.0
 const RUSH_END_DURATION := 0.12
 const DEATH_FPS := 12.0
 const DEATH_FRAME_COUNT := 16
@@ -382,7 +383,7 @@ func _is_player_in_rush_path(from: Vector2, to: Vector2) -> bool:
 	if segment_length_squared > 0.01:
 		projection = clampf((target.global_position - from).dot(segment) / segment_length_squared, 0.0, 1.0)
 	var nearest := from.lerp(to, projection)
-	if nearest.distance_to(target.global_position) <= CONTACT_DAMAGE_RANGE + 14.0:
+	if nearest.distance_to(target.global_position) <= CONTACT_DAMAGE_RANGE:
 		return true
 	var player_query := PhysicsRayQueryParameters2D.create(from, to)
 	player_query.collision_mask = PLAYER_MASK

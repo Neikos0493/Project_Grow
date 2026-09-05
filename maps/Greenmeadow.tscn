@@ -26,6 +26,7 @@ script = ExtResource("4_decorations")
 [node name="Runtime" type="Node2D" parent="." unique_id=1261749331]
 
 [node name="Projectiles" type="Node2D" parent="Runtime" unique_id=899798425]
+z_index = 20
 
 [node name="Plants" type="Node2D" parent="Runtime" unique_id=772928754]
 z_index = 6
