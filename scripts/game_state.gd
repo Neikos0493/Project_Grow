@@ -17,7 +17,7 @@ const MAX_HEALTH := 5
 const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
 const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
-const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
+const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
 const KNOWN_ITEM_IDS := {
 	"hoe": 1,
 	"green_seed": 64,
@@ -47,6 +47,7 @@ var entry_mode := "new_game"
 var last_load_used_backup := false
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
+var world_tree_blessing_unlocked := false
 
 func _ready() -> void:
 	if not session_initialized:
@@ -66,6 +67,7 @@ func reset_session() -> void:
 	last_load_used_backup = false
 	orange_seed_granted = false
 	green_plantings_since_mutation = 0
+	world_tree_blessing_unlocked = false
 
 func ensure_session() -> void:
 	if not session_initialized:
@@ -204,6 +206,7 @@ func _build_save_data() -> Dictionary:
 			"quest_state": quest_state,
 			"orange_seed_granted": orange_seed_granted,
 			"green_plantings_since_mutation": green_plantings_since_mutation,
+			"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
 			"unlocked_map_ids": unlocked,
 		},
 		"maps": maps,
@@ -271,6 +274,9 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 			unlocked.append(String(map_id))
 	if String(&"greenmeadow") not in unlocked:
 		unlocked.append(String(&"greenmeadow"))
+	var world_tree_blessing_unlocked := bool(data.get("world_tree_blessing_unlocked", false))
+	if not world_tree_blessing_unlocked:
+		unlocked.erase(String(&"sunset_shore"))
 	return {
 		"inventory": normalized_inventory,
 		"coins": clampi(int(data.get("coins", 9999)), 0, MAX_COINS),
@@ -278,6 +284,7 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"quest_state": clampi(int(data.get("quest_state", QUEST_STATE_MIN)), QUEST_STATE_MIN, QUEST_STATE_MAX),
 		"orange_seed_granted": bool(data.get("orange_seed_granted", false)),
 		"green_plantings_since_mutation": clampi(int(data.get("green_plantings_since_mutation", 0)), 0, 9),
+		"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
 		"unlocked_map_ids": unlocked,
 	}
 
@@ -680,6 +687,7 @@ func _apply_valid_save(data: Dictionary) -> void:
 	quest_state = int(global_data["quest_state"])
 	orange_seed_granted = bool(global_data.get("orange_seed_granted", false))
 	green_plantings_since_mutation = int(global_data.get("green_plantings_since_mutation", 0))
+	world_tree_blessing_unlocked = bool(global_data.get("world_tree_blessing_unlocked", false))
 	unlocked_map_ids.clear()
 	for value in global_data["unlocked_map_ids"]:
 		unlocked_map_ids.append(StringName(str(value)))

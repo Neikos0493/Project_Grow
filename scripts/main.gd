@@ -485,6 +485,9 @@ func _on_interaction_requested() -> void:
 		"spaceship":
 			_open_radar()
 			return
+		"lookout":
+			_open_world_tree_dialogue()
+			return
 		"lake_npc":
 			_open_lake_dialogue()
 			return
@@ -556,6 +559,41 @@ func _open_ranger_dialogue() -> void:
 		_msg("E  Continue|E  Close", "E  继续|E  关闭")
 	)
 
+func _open_world_tree_dialogue() -> void:
+	if world.get_map_id() != &"greenmeadow":
+		return
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var lines: Array[String] = []
+	if game_state.world_tree_blessing_unlocked:
+		lines = [_msg(
+			"The World Tree has already opened the path to the next planet.",
+			"世界树已经为你打开了前往下一个星球的道路。"
+		)]
+	elif inventory.has_item(QUEST_ITEM_1):
+		if inventory.remove_item(QUEST_ITEM_1, 1):
+			game_state.world_tree_blessing_unlocked = true
+			if &"sunset_shore" not in game_state.unlocked_map_ids:
+				game_state.unlocked_map_ids.append(&"sunset_shore")
+			_mark_save_dirty()
+			lines = [_msg(
+				"The relic awakens the World Tree. The next planet is now within reach.",
+				"任务遗物唤醒了世界树。下一个星球现在已经可以抵达。"
+			)]
+		else:
+			lines = [_msg("The relic could not be handed over.", "任务遗物无法交付。")]
+	else:
+		lines = [_msg(
+			"The World Tree is silent. Defeat this planet's boss and bring its relic here.",
+			"世界树仍然沉默。先击败本层 Boss，再把它掉落的任务遗物带到这里。"
+		)]
+	dialogue_box.open_dialogue(
+		_msg("World Tree", "世界树"),
+		lines,
+		_msg("E  Continue|E  Close", "E  继续|E  关闭")
+	)
+
 func _open_lake_dialogue() -> void:
 	if not world.supports_lake_encounter():
 		return
@@ -612,7 +650,10 @@ func _on_radar_point_selected(map_id: StringName) -> void:
 		_show_toast(_msg("This destination is already in range.", "当前已在此目的地。"))
 		return
 	if map_id not in game_state.unlocked_map_ids:
-		_show_toast(_msg("That destination is locked.", "该目的地尚未解锁。"))
+		_show_toast(_msg(
+			"Defeat this planet's boss, then give its relic to the World Tree.",
+			"请先击败本层 Boss，再把掉落的任务遗物交给世界树。"
+		))
 		return
 	await _travel_to(map_id)
 
@@ -706,6 +747,7 @@ func _capture_game_state_memory() -> Dictionary:
 		"unlocked_map_ids": game_state.unlocked_map_ids.duplicate(),
 		"map_states": game_state.map_states.duplicate(true),
 		"entry_mode": game_state.entry_mode,
+		"world_tree_blessing_unlocked": game_state.world_tree_blessing_unlocked,
 	}
 
 func _restore_game_state_memory(state: Dictionary) -> void:
@@ -720,6 +762,7 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 	game_state.unlocked_map_ids.assign(state.get("unlocked_map_ids", []))
 	game_state.map_states = state.get("map_states", {}).duplicate(true)
 	game_state.entry_mode = str(state.get("entry_mode", game_state.entry_mode))
+	game_state.world_tree_blessing_unlocked = bool(state.get("world_tree_blessing_unlocked", game_state.world_tree_blessing_unlocked))
 
 func _rollback_travel(old_map_id: StringName, old_snapshot: Dictionary, old_game_state: Dictionary, message: String) -> void:
 	_restore_game_state_memory(old_game_state)
