@@ -40,6 +40,10 @@ const QUEST_DEFEATED := 4
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
 @onready var radar_panel: Control = $HUD/RadarPanel
 @onready var travel_transition: Control = $HUD/TravelTransition
+@onready var pause_menu: Control = $HUD/PauseMenu
+@onready var pause_title: Label = $HUD/PauseMenu/Panel/Title
+@onready var pause_resume_button: Button = $HUD/PauseMenu/Panel/ResumeButton
+@onready var pause_menu_button: Button = $HUD/PauseMenu/Panel/MenuButton
 @onready var prompt_box: ColorRect = $HUD/PromptBox
 @onready var prompt_label: Label = $HUD/PromptBox/Prompt
 @onready var toast_box: ColorRect = $HUD/ToastBox
@@ -106,6 +110,10 @@ func _ready() -> void:
 	dialogue_box.hide()
 	prompt_box.hide()
 	death_overlay.hide()
+	pause_menu.hide()
+	pause_resume_button.pressed.connect(_resume_game)
+	pause_menu_button.pressed.connect(_return_to_menu)
+	_apply_pause_language()
 	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
 	respawn_progress.value = 0.0
 	_on_health_changed(player.health, player.MAX_HEALTH)
@@ -150,6 +158,27 @@ func _apply_game_language() -> void:
 	$HUD/DeathOverlay/DeathCard/RespawnInstruction.text = _msg("Hold SPACE for 2 seconds to return", "长按空格键 2 秒返回")
 	$HUD/ShopPanel/DimLabel.text = _msg("WOODLAND SHOP", "林地商店")
 	$HUD/DialogueBox/Panel/Hint.text = _msg("E  Continue|E  Close", "E  继续|E  关闭")
+	_apply_pause_language()
+
+func _apply_pause_language() -> void:
+	pause_title.text = _msg("PAUSED", "游戏暂停")
+	pause_resume_button.text = _msg("RESUME", "继续游戏")
+	pause_menu_button.text = _msg("MAIN MENU", "返回主菜单")
+
+func _set_paused(value: bool) -> void:
+	get_tree().paused = value
+	pause_menu.visible = value
+	if value:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	else:
+		Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+
+func _resume_game() -> void:
+	_set_paused(false)
+
+func _return_to_menu() -> void:
+	_set_paused(false)
+	get_tree().change_scene_to_file("res://MainMenu.tscn")
 
 func _process(delta: float) -> void:
 	_update_water_encounter(delta)
@@ -194,7 +223,20 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dialogue_box.is_open():
+	if _is_escape(event):
+		if dialogue_box.is_open():
+			return
+		if player.dead:
+			return
+		if radar_open:
+			_close_radar()
+		elif shop_open:
+			_close_shop()
+		else:
+			_set_paused(not get_tree().paused)
+		get_viewport().set_input_as_handled()
+		return
+	if get_tree().paused or dialogue_box.is_open():
 		return
 	if player.dead:
 		return
