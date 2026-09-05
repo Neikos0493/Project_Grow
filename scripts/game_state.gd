@@ -4,6 +4,7 @@ extends Node
 var has_inventory_snapshot := false
 var inventory_slots: Array[Dictionary] = []
 var selected_slot := 0
+var orange_seed_granted := false
 
 func capture_inventory(inventory: MeadowInventory) -> void:
 	inventory_slots.clear()
@@ -35,3 +36,4 @@ func clear_inventory() -> void:
 	has_inventory_snapshot = false
 	inventory_slots.clear()
 	selected_slot = 0
+	orange_seed_granted = false

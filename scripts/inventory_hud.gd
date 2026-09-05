@@ -59,6 +59,10 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 9.0, Color("#59b35b"))
 		draw_circle(center + Vector2(-3, -3), 2.5, Color("#a3de6d"))
+	elif icon == "orange_seed":
+		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
+		draw_circle(center, 9.0, Color("#e77a32"))
+		draw_circle(center + Vector2(-3, -3), 2.5, Color("#ffd080"))
 	elif icon == "blue_seed":
 		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 9.0, Color("#4b9ddd"))

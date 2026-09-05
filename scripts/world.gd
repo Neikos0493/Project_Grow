@@ -227,7 +227,10 @@ func get_pointer_cell(mouse_world: Vector2, player_position: Vector2, facing: Ve
 	var cell := world_to_cell(mouse_world)
 	if not _is_in_bounds(cell) or _is_prop_cell(cell):
 		return Vector2i(-1, -1)
-	if mode == "hoe":
+	if mode == "orange_seed":
+		if level_variant != "pond" or cells[cell.y][cell.x] != SAND or farm_tiles.has(cell):
+			return Vector2i(-1, -1)
+	elif mode == "hoe":
 		if cells[cell.y][cell.x] != GRASS or farm_tiles.has(cell):
 			return Vector2i(-1, -1)
 	else:
@@ -256,6 +259,13 @@ func plant_seed(cell: Vector2i) -> bool:
 	if int(farm_tiles[cell].get("state", -1)) != FARM_TILLED:
 		return false
 	farm_tiles[cell]["state"] = FARM_SEEDED
+	queue_redraw()
+	return true
+
+func plant_orange_seed(cell: Vector2i) -> bool:
+	if level_variant != "pond" or not _is_in_bounds(cell) or cells[cell.y][cell.x] != SAND or farm_tiles.has(cell):
+		return false
+	farm_tiles[cell] = {"state": FARM_SEEDED}
 	queue_redraw()
 	return true
 

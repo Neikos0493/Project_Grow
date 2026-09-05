@@ -52,6 +52,17 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 50,
 		"description": "Swings a short yellow blade that lightly knocks back monsters.",
 	},
+	"orange_seed": {
+		"name": "Orange Seed",
+		"consumable": true,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "orange_seed",
+		"sell_price": 4,
+		"buy_price": 8,
+		"description": "Plant it in beach sand to grow a fan-leaf cactus.",
+	},
 	"blue_seed": {
 		"name": "Blue Seed",
 		"consumable": true,
@@ -144,6 +155,7 @@ func get_item_name(item_id: String) -> String:
 			"yellow_ball": return "黄色球"
 			"melee_weapon": return "草甸之刃"
 			"plant": return "植物"
+			"orange_seed": return "橙色种子"
 			"blue_seed": return "蓝色种子"
 			"quest_item_1": return "任务道具 1"
 	return str(get_item_definition(item_id).get("name", item_id))
@@ -156,6 +168,7 @@ func get_item_description(item_id: String) -> String:
 			"yellow_ball": return "向草甸发射明亮的投射物。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
 			"plant": return "成熟植物，可以在商店出售。"
+			"orange_seed": return "种在沙地上，长成会发射扇形弹幕的仙人掌。"
 			"blue_seed": return "只能种在水里，会唤醒湖中的古老生物。"
 			"quest_item_1": return "湖中怪物留下的任务道具。"
 	return str(get_item_definition(item_id).get("description", ""))

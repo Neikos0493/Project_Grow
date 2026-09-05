@@ -4,6 +4,7 @@ extends Node2D
 
 const HOE := "hoe"
 const GREEN_SEED := "green_seed"
+const ORANGE_SEED := "orange_seed"
 const YELLOW_BALL := "yellow_ball"
 const MELEE_WEAPON := "melee_weapon"
 const PLANT := "plant"
@@ -100,6 +101,9 @@ func _ready() -> void:
 	inventory.inventory_changed.connect(_refresh_inventory)
 	inventory.selection_changed.connect(_refresh_inventory)
 	GameState.restore_inventory(inventory)
+	if world.level_variant == "pond" and not GameState.orange_seed_granted:
+		if inventory.try_add(ORANGE_SEED):
+			GameState.orange_seed_granted = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
 	radar_panel.hide()
@@ -498,6 +502,29 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				plant.queue_free()
 				return
 			_show_toast(_msg("Seed planted. It will mature in 3 seconds.", "种子已种下，3 秒后成熟。"))
+		ORANGE_SEED:
+			var sand_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, ORANGE_SEED)
+			if sand_cell.x < 0 or inventory.get_selected_count() <= 0 or not world.plant_orange_seed(sand_cell):
+				_show_toast(_msg("Orange seeds need nearby beach sand in the second area.", "橙色种子需要种在第二个区域附近的沙地上。"))
+				return
+			var cactus := MeadowOrangeCactus.new()
+			plants.add_child(cactus)
+			cactus.global_position = world.cell_to_world(sand_cell)
+			cactus.setup(sand_cell, player)
+			cactus.projectile_requested.connect(_on_orange_cactus_projectile_requested)
+			cactus.died.connect(_on_plant_died)
+			cactus.matured.connect(_on_plant_matured)
+			plant_entities[sand_cell] = int(plant_entities.get(sand_cell, 0)) + 1
+			if not inventory.consume_selected():
+				var cactus_count := int(plant_entities.get(sand_cell, 0)) - 1
+				if cactus_count <= 0:
+					plant_entities.erase(sand_cell)
+				else:
+					plant_entities[sand_cell] = cactus_count
+				world.set_farm_tilled(sand_cell)
+				cactus.queue_free()
+				return
+			_show_toast(_msg("Orange seed planted. It will mature in 3 seconds.", "橙色种子已种下，3 秒后成熟。"))
 		BLUE_SEED:
 			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
 			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
@@ -517,6 +544,12 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, da
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
 	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint)
+
+func _on_orange_cactus_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
+	if player.dead:
+		return
+	for direction in directions:
+		_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#e77a32"))
 
 func _on_plant_matured(cell: Vector2i) -> void:
 	world.set_farm_tilled(cell)
