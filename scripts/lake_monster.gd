@@ -172,6 +172,7 @@ func _attack() -> void:
 
 func _begin_charge() -> void:
 	var offset := target.global_position - global_position
+	var offset := target.global_position - global_position
 	if offset.length_squared() < 0.01:
 		offset = facing
 	var map_offset := world.global_direction_to_map(offset).normalized()
@@ -186,12 +187,6 @@ func _begin_charge() -> void:
 	charge_endpoint = world.to_global(world.cell_to_world(endpoint_cell))
 	charge_hit_player = false
 	_change_state("charging")
-
-func _grid_direction(direction: Vector2) -> Vector2:
-	var result := Vector2(signf(direction.x), signf(direction.y))
-	if result.length_squared() < 0.01:
-		return Vector2.RIGHT
-	return result.normalized()
 
 func _charge(delta: float) -> void:
 	var from := global_position
