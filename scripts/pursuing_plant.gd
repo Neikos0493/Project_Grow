@@ -8,7 +8,7 @@ signal died(cell: Vector2i, position: Vector2)
 const GROW_TIME := 3.0
 const MAX_HEALTH := 3
 const ATTACK_RANGE := 210.0
-const JUMP_DURATION := 0.34
+const JUMP_DURATION := 0.55
 const JUMP_HEIGHT := 34.0
 const HIT_RANGE := 28.0
 const JUMP_DAMAGE := 1

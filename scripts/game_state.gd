@@ -5,6 +5,7 @@ var has_inventory_snapshot := false
 var inventory_slots: Array[Dictionary] = []
 var selected_slot := 0
 var orange_seed_granted := false
+var green_plantings_since_mutation := 0
 
 func capture_inventory(inventory: MeadowInventory) -> void:
 	inventory_slots.clear()
@@ -37,3 +38,4 @@ func clear_inventory() -> void:
 	inventory_slots.clear()
 	selected_slot = 0
 	orange_seed_granted = false
+	green_plantings_since_mutation = 0

@@ -4,19 +4,21 @@ extends CharacterBody2D
 
 signal died(position: Vector2)
 signal stunned
+signal health_changed(current: int, maximum: int)
 
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
 const MONSTER_MASK := 16
-const MAX_HEALTH := 8
-const MOVE_SPEED := 62.0
-const CHARGE_SPEED := 360.0
+const MAX_HEALTH := 12
+const MOVE_SPEED := 70.0
+const CHARGE_SPEED := 410.0
 const ATTACK_RANGE := 30.0
-const ATTACK_WINDUP := 0.24
-const ATTACK_COOLDOWN := 0.55
-const CHARGE_WINDUP := 0.45
-const STUN_DURATION := 3.0
-const CHARGE_DAMAGE := 3
+const ATTACK_WINDUP := 0.2
+const ATTACK_COOLDOWN := 0.4
+const CHARGE_WINDUP := 0.35
+const STUN_DURATION := 2.4
+const MELEE_DAMAGE := 2
+const CHARGE_DAMAGE := 4
 
 var target: MeadowPlayer
 var world: MeadowWorld
@@ -36,7 +38,7 @@ func setup(new_target: MeadowPlayer, new_world: MeadowWorld, spawn_position: Vec
 	target = new_target
 	world = new_world
 	global_position = spawn_position
-	attacks_before_charge = randi_range(1, 3)
+	attacks_before_charge = randi_range(1, 2)
 	queue_redraw()
 
 func _ready() -> void:
@@ -100,7 +102,7 @@ func _attack(_delta: float) -> void:
 	if not attack_hit_resolved and state_elapsed >= ATTACK_WINDUP:
 		attack_hit_resolved = true
 		if offset.length() <= ATTACK_RANGE:
-			target.take_damage(1)
+			target.take_damage(MELEE_DAMAGE)
 	if state_elapsed >= ATTACK_WINDUP + ATTACK_COOLDOWN:
 		attacks_done += 1
 		if attacks_done >= attacks_before_charge:
@@ -175,6 +177,7 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	health_changed.emit(health, MAX_HEALTH)
 	if health == 0:
 		dead = true
 		collision_layer = 0

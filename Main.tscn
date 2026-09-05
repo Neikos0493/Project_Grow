@@ -158,6 +158,41 @@ theme_override_font_sizes/font_size = 14
 text = "HP  5/5"
 horizontal_alignment = 2
 
+[node name="BossBar" type="Control" parent="HUD"]
+z_index = 40
+offset_left = 170.0
+offset_top = 64.0
+offset_right = 790.0
+offset_bottom = 106.0
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="HUD/BossBar"]
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 620.0
+offset_bottom = 17.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_colors/font_outline_color = Color(0.055, 0.11, 0.13, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+text = "LAKE MONSTER"
+horizontal_alignment = 1
+
+[node name="Track" type="ColorRect" parent="HUD/BossBar"]
+offset_left = 0.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 35.0
+mouse_filter = 2
+color = Color(0.055, 0.11, 0.13, 0.96)
+
+[node name="Fill" type="ColorRect" parent="HUD/BossBar/Track"]
+offset_right = 620.0
+offset_bottom = 15.0
+mouse_filter = 2
+color = Color(0.78, 0.2, 0.23, 1)
+
 [node name="PromptBox" type="ColorRect" parent="HUD"]
 offset_left = 24.0
 offset_top = 466.0

@@ -38,6 +38,8 @@ const QUEST_DEFEATED := 4
 @onready var inventory_sell_tooltip: Label = $HUD/InventorySellTooltip
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
+@onready var boss_bar: Control = $HUD/BossBar
+@onready var boss_fill: ColorRect = $HUD/BossBar/Track/Fill
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
 @onready var radar_panel: Control = $HUD/RadarPanel
 @onready var travel_transition: Control = $HUD/TravelTransition
@@ -113,6 +115,7 @@ func _ready() -> void:
 	dialogue_box.hide()
 	prompt_box.hide()
 	death_overlay.hide()
+	boss_bar.hide()
 	pause_menu.hide()
 	pause_resume_button.pressed.connect(_resume_game)
 	pause_menu_button.pressed.connect(_return_to_menu)
@@ -530,10 +533,14 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				return
 			if not world.plant_seed(seed_cell):
 				return
-			var plant := MeadowPursuingPlant.new()
+			var is_mutation := GameState.green_plantings_since_mutation >= 9 or randf() < 0.1
+			var plant: MeadowPursuingPlant = MeadowMutatedPlant.new() if is_mutation else MeadowPursuingPlant.new()
 			plants.add_child(plant)
 			plant.global_position = world.cell_to_world(seed_cell)
 			plant.setup(seed_cell, player)
+			if is_mutation:
+				var mutated_plant := plant as MeadowMutatedPlant
+				mutated_plant.projectile_requested.connect(_on_green_plant_projectile_requested)
 			plant.died.connect(_on_plant_died)
 			plant.matured.connect(_on_plant_matured)
 			plant_entities[seed_cell] = int(plant_entities.get(seed_cell, 0)) + 1
@@ -546,7 +553,11 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				world.set_farm_tilled(seed_cell)
 				plant.queue_free()
 				return
-			_show_toast(_msg("Seed planted. It will mature in 3 seconds.", "种子已种下，3 秒后成熟。"))
+			if is_mutation:
+				GameState.green_plantings_since_mutation = 0
+			else:
+				GameState.green_plantings_since_mutation += 1
+			_show_toast(_msg("Seed planted.", "种子已种下。"))
 		ORANGE_SEED:
 			var sand_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, ORANGE_SEED)
 			if sand_cell.x < 0 or inventory.get_selected_count() <= 0 or not world.plant_orange_seed(sand_cell):
@@ -584,6 +595,12 @@ func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, da
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
 	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint, speed)
+
+func _on_green_plant_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
+	if player.dead:
+		return
+	for direction in directions:
+		_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLAYER_MASK, 1, null, Color("#59b35b"), 180.0)
 
 func _on_orange_cactus_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
@@ -643,13 +660,21 @@ func _spawn_lake_monster() -> void:
 	monster.setup(player, world, world.get_water_growth_center(water_root))
 	monster.died.connect(_on_lake_monster_died)
 	monster.stunned.connect(_on_lake_monster_stunned)
+	monster.health_changed.connect(_on_lake_monster_health_changed)
 	lake_monster = monster
+	_on_lake_monster_health_changed(monster.health, monster.MAX_HEALTH)
+	boss_bar.show()
 	_show_toast(_msg("The lake monster has awakened!", "湖中怪物苏醒了！"))
 
 func _on_lake_monster_stunned() -> void:
 	_show_toast(_msg("The monster is stunned for 3 seconds.", "怪物眩晕 3 秒。"))
 
+func _on_lake_monster_health_changed(current: int, maximum: int) -> void:
+	var ratio := clampf(float(current) / float(maximum), 0.0, 1.0)
+	boss_fill.size.x = 620.0 * ratio
+
 func _on_lake_monster_died(position: Vector2) -> void:
+	boss_bar.hide()
 	if quest_state != QUEST_MONSTER_ACTIVE:
 		return
 	lake_monster = null
@@ -665,6 +690,7 @@ func _reset_lake_encounter_on_player_death() -> void:
 	if is_instance_valid(lake_monster):
 		lake_monster.dead = true
 		lake_monster.queue_free()
+	boss_bar.hide()
 	lake_monster = null
 	if water_root.x >= 0:
 		world.clear_water_growth(water_root)
