@@ -11,6 +11,7 @@ const PLANT := "plant"
 const PEA_DROP := "pea_drop"
 const MUTATED_PEA_DROP := "mutated_pea_drop"
 const CACTUS_DROP := "cactus_drop"
+const SAXAUL_SEED := "saxaul_seed"
 const LILY_SEED := "lily_seed"
 const BLUE_SEED := "blue_seed"
 const QUEST_ITEM_1 := "quest_item_1"
@@ -23,6 +24,7 @@ const RESPAWN_HOLD_SECONDS := 2.0
 const WATER_GROW_TIME := 2.5
 const WATER_SPREAD_INTERVAL := 0.18
 const WATER_EMERGE_DELAY := 0.65
+const SAXAUL_SPREAD_INTERVAL := 0.12
 const QUEST_AWAITING_PLANT := 0
 const QUEST_SEED_GRANTED := 1
 const QUEST_WATER_GROWING := 2
@@ -43,6 +45,7 @@ const QUEST_DEFEATED := 4
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
 @onready var boss_bar: Control = $HUD/BossBar
+@onready var boss_title: Label = $HUD/BossBar/Title
 @onready var boss_fill: ColorRect = $HUD/BossBar/Track/Fill
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
 @onready var radar_panel: Control = $HUD/RadarPanel
@@ -80,9 +83,16 @@ var water_spread_cells: Array[Vector2i] = []
 var water_spread_index := 0
 var water_emerge_elapsed := 0.0
 var lake_monster: MeadowLakeMonster
+var saxaul_boss: MeadowSaxaulBoss
+var saxaul_spread_rings: Array = []
+var saxaul_spread_index := 0
+var saxaul_spread_elapsed := 0.0
 
 func _ready() -> void:
 	_load_language()
+	world.apply_permanent_grass(GameState.permanent_pond_grass)
+	if world.level_variant == "pond" and GameState.saxaul_spread_active:
+		_prepare_saxaul_spread(GameState.saxaul_spread_origin)
 	world.set_language(language)
 	inventory.set_language(language)
 	shop_panel.set_language(language)
@@ -195,6 +205,7 @@ func _return_to_menu() -> void:
 
 func _process(delta: float) -> void:
 	_update_water_encounter(delta)
+	_update_saxaul_grass_spread(delta)
 	crosshair.queue_redraw()
 	_update_depth_order()
 	if not world.drops.is_empty():
@@ -334,6 +345,17 @@ func _open_lake_dialogue() -> void:
 	_clear_inventory_sell_tooltip()
 	var lines: Array[String] = []
 	var speaker := _msg("Lake Keeper", "湖之守望者")
+	if world.level_variant == "pond" and inventory.has_item(CACTUS_DROP) and not inventory.has_item(SAXAUL_SEED) and not is_instance_valid(saxaul_boss):
+		if inventory.remove_item(CACTUS_DROP, 1):
+			if inventory.try_add(SAXAUL_SEED, 1):
+				lines = [_msg("This cactus fruit carries the desert's strength. Take this saxaul seed.", "这颗仙人掌果实蕴含着沙漠的力量。拿着这颗梭梭树种子。")]
+			else:
+				inventory.try_add(CACTUS_DROP, 1)
+				lines = [_msg("Make room in your pack for the saxaul seed.", "请先为梭梭树种子腾出背包空间。")]
+		else:
+			lines = [_msg("I could not complete that exchange yet.", "这次兑换还无法完成。")]
+		dialogue_box.open_dialogue(speaker, lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+		return
 	match quest_state:
 		QUEST_AWAITING_PLANT:
 			if inventory.has_item(MUTATED_PEA_DROP) and inventory.can_add(LILY_SEED):
@@ -569,12 +591,15 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			_show_toast(_msg("Seed planted.", "种子已种下。"))
 		ORANGE_SEED:
 			var sand_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, ORANGE_SEED)
-			if sand_cell.x < 0 or inventory.get_selected_count() <= 0 or not world.plant_orange_seed(sand_cell):
+			if sand_cell.x < 0 or inventory.get_selected_count() <= 0:
 				_show_toast(_msg("Orange seeds need nearby beach sand in the second area.", "橙色种子需要种在第二个区域附近的沙地上。"))
 				return
-			if not inventory.remove_selected():
-				world.set_farm_tilled(sand_cell)
+			if not inventory.remove_item(ORANGE_SEED, 1):
 				_show_toast(_msg("The orange seed could not be used.", "橙色种子无法使用。"))
+				return
+			if not world.plant_orange_seed(sand_cell):
+				inventory.try_add(ORANGE_SEED, 1)
+				_show_toast(_msg("Orange seeds need nearby beach sand in the second area.", "橙色种子需要种在第二个区域附近的沙地上。"))
 				return
 			var cactus := MeadowOrangeCactus.new()
 			cactus.global_position = world.cell_to_world(sand_cell)
@@ -585,6 +610,27 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 			plants.add_child(cactus)
 			plant_entities[sand_cell] = int(plant_entities.get(sand_cell, 0)) + 1
 			_show_toast(_msg("Orange seed planted. It will mature in 3 seconds.", "橙色种子已种下，3 秒后成熟。"))
+		SAXAUL_SEED:
+			if is_instance_valid(saxaul_boss) and not saxaul_boss.dead:
+				_show_toast(_msg("A saxaul boss is already growing here.", "这里已经有一棵梭梭树正在生长。"))
+				return
+			var saxaul_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, SAXAUL_SEED)
+			if saxaul_cell.x < 0 or inventory.get_selected_count() <= 0 or not world.plant_saxaul_seed(saxaul_cell):
+				_show_toast(_msg("The saxaul seed needs the center of a clear 3 by 3 sand patch.", "梭梭树种子必须种在一片完整 3×3 沙地的中央。"))
+				return
+			if not inventory.remove_selected():
+				world.clear_farm(saxaul_cell)
+				return
+			var tree := MeadowSaxaulBoss.new()
+			tree.setup(saxaul_cell, player)
+			tree.matured.connect(_on_saxaul_matured)
+			tree.ring_attack_requested.connect(_on_saxaul_ring_attack)
+			tree.vine_volley_requested.connect(_on_saxaul_vine_volley)
+			tree.health_changed.connect(_on_saxaul_health_changed)
+			tree.died.connect(_on_saxaul_died)
+			plants.add_child(tree)
+			saxaul_boss = tree
+			_show_toast(_msg("The saxaul seed is taking root.", "梭梭树种子正在扎根。"))
 		LILY_SEED:
 			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
 			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
@@ -600,10 +646,10 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 		MELEE_WEAPON:
 			melee_weapon.try_swing(direction)
 
-func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, damage: int, source: Node, tint: Color, speed: float = MeadowProjectile.SPEED) -> void:
+func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, damage: int, source: Node, tint: Color, speed: float = MeadowProjectile.SPEED, beam_length: float = 0.0) -> void:
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
-	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint, speed)
+	projectile.setup(origin, direction, get_world_2d().direct_space_state, target_mask, damage, source, tint, speed, beam_length)
 
 func _on_green_plant_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
@@ -630,6 +676,59 @@ func _on_plant_died(cell: Vector2i, position: Vector2, drop_item_id: String) -> 
 		plant_entities[cell] = plant_count - 1
 	world.add_drop(position, drop_item_id, 1, 3000)
 	_show_toast(_msg("The plant dropped %s." % inventory.get_item_name(drop_item_id), "%s掉落了%s。" % [inventory.get_item_name(drop_item_id), inventory.get_item_name(drop_item_id)]))
+
+func _on_saxaul_matured(cell: Vector2i) -> void:
+	var converted := world.convert_saxaul_patch_to_grass(cell)
+	for grass_cell in converted:
+		if grass_cell not in GameState.permanent_pond_grass:
+			GameState.permanent_pond_grass.append(grass_cell)
+	boss_title.text = _msg("SAXAUL TREE", "梭梭树")
+	_on_saxaul_health_changed(saxaul_boss.health, saxaul_boss.MAX_HEALTH)
+	boss_bar.show()
+	_show_toast(_msg("The saxaul tree turned the surrounding sand into grass!", "梭梭树让周围的沙地永久变成了草地！"))
+
+func _on_saxaul_ring_attack(origin: Vector2, directions: Array[Vector2]) -> void:
+	for direction in directions:
+		_spawn_projectile(origin + direction * 24.0, direction, WORLD_MASK | PLAYER_MASK, 1, saxaul_boss, Color("#9ee66f"), 520.0, 72.0)
+
+func _on_saxaul_vine_volley(origins: Array[Vector2], directions: Array[Vector2]) -> void:
+	for origin in origins:
+		for direction in directions:
+			_spawn_projectile(origin, direction, WORLD_MASK | PLAYER_MASK, 1, saxaul_boss, Color("#c8ef7d"), 180.0)
+
+func _on_saxaul_health_changed(current: int, maximum: int) -> void:
+	boss_fill.size.x = 620.0 * clampf(float(current) / float(maximum), 0.0, 1.0)
+
+func _on_saxaul_died(cell: Vector2i, _position: Vector2) -> void:
+	boss_bar.hide()
+	GameState.saxaul_spread_active = true
+	GameState.saxaul_spread_origin = cell
+	_prepare_saxaul_spread(cell)
+	_show_toast(_msg("The fallen saxaul is spreading grass across the desert.", "倒下的梭梭树开始让草地向整片沙漠蔓延。"))
+
+func _prepare_saxaul_spread(origin: Vector2i) -> void:
+	saxaul_spread_rings = world.get_sand_spread_rings(origin)
+	saxaul_spread_index = 0
+	saxaul_spread_elapsed = 0.0
+	if saxaul_spread_rings.is_empty():
+		GameState.saxaul_spread_active = false
+
+func _update_saxaul_grass_spread(delta: float) -> void:
+	if not GameState.saxaul_spread_active or world.level_variant != "pond":
+		return
+	saxaul_spread_elapsed += delta
+	if saxaul_spread_elapsed < SAXAUL_SPREAD_INTERVAL:
+		return
+	saxaul_spread_elapsed = 0.0
+	if saxaul_spread_index >= saxaul_spread_rings.size():
+		GameState.saxaul_spread_active = false
+		_show_toast(_msg("Grass now covers every open patch of desert sand.", "草地已经覆盖了所有空旷沙地。"))
+		return
+	var converted := world.convert_sand_cells_to_grass(saxaul_spread_rings[saxaul_spread_index])
+	for grass_cell in converted:
+		if grass_cell not in GameState.permanent_pond_grass:
+			GameState.permanent_pond_grass.append(grass_cell)
+	saxaul_spread_index += 1
 
 func _begin_water_growth(root: Vector2i) -> void:
 	quest_state = QUEST_WATER_GROWING
@@ -671,6 +770,7 @@ func _spawn_lake_monster() -> void:
 	monster.stunned.connect(_on_lake_monster_stunned)
 	monster.health_changed.connect(_on_lake_monster_health_changed)
 	lake_monster = monster
+	boss_title.text = _msg("LAKE MONSTER", "湖怪")
 	_on_lake_monster_health_changed(monster.health, monster.MAX_HEALTH)
 	boss_bar.show()
 	_show_toast(_msg("The lake monster has awakened!", "湖中怪物苏醒了！"))

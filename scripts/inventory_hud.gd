@@ -80,6 +80,9 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 	elif icon == "cactus_drop":
 		draw_circle(center + Vector2(0, 2), 10.0, Color("#d85d38"))
 		draw_circle(center + Vector2(-3, -3), 3.0, Color("#ffd46c"))
+	elif icon == "saxaul_seed":
+		draw_circle(center, 10.0, Color("#8a6542"))
+		draw_circle(center + Vector2(-3, -3), 3.0, Color("#d8e98c"))
 	elif icon == "lily_seed":
 		draw_circle(center + Vector2(0, 2), 10.0, Color("#7ca9dc"))
 		draw_circle(center + Vector2(-3, -3), 3.0, Color("#d8f1ff"))

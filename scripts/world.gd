@@ -160,8 +160,17 @@ func _generate_map() -> void:
 	assert(is_walkable(PLAYER_START_CELL))
 	assert(is_walkable(Vector2i(20, 1)))
 	assert(is_walkable(LOOKOUT_CELL))
+	for prop in props:
+		for prop_cell in _prop_cells(prop):
+			assert(_is_in_bounds(prop_cell))
+			assert(is_walkable(prop_cell))
 
 func _apply_pond_layout() -> void:
+	# The lake keeper's meadow position becomes ocean in this variant.
+	for prop in props:
+		if str(prop.get("kind", "")) == "lake_npc":
+			prop["cell"] = Vector2i(24, 6)
+			break
 	# The second map is a wide shore: sand, ocean, boardwalks, and small grass dunes.
 	for y in range(1, MAP_SIZE.y - 1):
 		for x in range(1, MAP_SIZE.x - 1):
@@ -227,7 +236,10 @@ func get_pointer_cell(mouse_world: Vector2, player_position: Vector2, facing: Ve
 	var cell := world_to_cell(mouse_world)
 	if not _is_in_bounds(cell) or _is_prop_cell(cell):
 		return Vector2i(-1, -1)
-	if mode == "orange_seed":
+	if mode == "saxaul_seed":
+		if not can_plant_saxaul_seed(cell):
+			return Vector2i(-1, -1)
+	elif mode == "orange_seed":
 		if level_variant != "pond" or cells[cell.y][cell.x] != SAND or farm_tiles.has(cell):
 			return Vector2i(-1, -1)
 	elif mode == "hoe":
@@ -268,6 +280,75 @@ func plant_orange_seed(cell: Vector2i) -> bool:
 	farm_tiles[cell] = {"state": FARM_SEEDED}
 	queue_redraw()
 	return true
+
+func can_plant_saxaul_seed(center: Vector2i) -> bool:
+	if level_variant != "pond" or farm_tiles.has(center):
+		return false
+	for y in range(center.y - 1, center.y + 2):
+		for x in range(center.x - 1, center.x + 2):
+			var cell := Vector2i(x, y)
+			if not _is_in_bounds(cell) or cells[cell.y][cell.x] != SAND or _is_prop_cell(cell) or farm_tiles.has(cell):
+				return false
+	return true
+
+func plant_saxaul_seed(center: Vector2i) -> bool:
+	if not can_plant_saxaul_seed(center):
+		return false
+	farm_tiles[center] = {"state": FARM_SEEDED}
+	queue_redraw()
+	return true
+
+func convert_saxaul_patch_to_grass(center: Vector2i) -> Array[Vector2i]:
+	var converted: Array[Vector2i] = []
+	for y in range(center.y - 1, center.y + 2):
+		for x in range(center.x - 1, center.x + 2):
+			var cell := Vector2i(x, y)
+			if _is_in_bounds(cell) and cells[cell.y][cell.x] == SAND:
+				cells[cell.y][cell.x] = GRASS
+				farm_tiles.erase(cell)
+				converted.append(cell)
+	queue_redraw()
+	return converted
+
+func apply_permanent_grass(grass_cells: Array[Vector2i]) -> void:
+	if level_variant != "pond":
+		return
+	for cell in grass_cells:
+		if _is_in_bounds(cell) and cells[cell.y][cell.x] == SAND:
+			cells[cell.y][cell.x] = GRASS
+			farm_tiles.erase(cell)
+	queue_redraw()
+
+func get_sand_spread_rings(center: Vector2i) -> Array:
+	var rings: Array = []
+	var max_radius := maxi(
+		maxi(center.x, MAP_SIZE.x - 1 - center.x),
+		maxi(center.y, MAP_SIZE.y - 1 - center.y)
+	)
+	for radius in range(2, max_radius + 1):
+		var ring: Array[Vector2i] = []
+		for y in range(center.y - radius, center.y + radius + 1):
+			for x in range(center.x - radius, center.x + radius + 1):
+				var cell := Vector2i(x, y)
+				if maxi(abs(cell.x - center.x), abs(cell.y - center.y)) != radius:
+					continue
+				if _is_in_bounds(cell) and cells[cell.y][cell.x] == SAND and not _is_prop_cell(cell):
+					ring.append(cell)
+		if not ring.is_empty():
+			rings.append(ring)
+	return rings
+
+func convert_sand_cells_to_grass(target_cells: Array) -> Array[Vector2i]:
+	var converted: Array[Vector2i] = []
+	for cell_value in target_cells:
+		var cell := Vector2i(cell_value)
+		if _is_in_bounds(cell) and cells[cell.y][cell.x] == SAND and not _is_prop_cell(cell):
+			cells[cell.y][cell.x] = GRASS
+			farm_tiles.erase(cell)
+			converted.append(cell)
+	if not converted.is_empty():
+		queue_redraw()
+	return converted
 
 func set_farm_mature(cell: Vector2i) -> void:
 	if farm_tiles.has(cell):

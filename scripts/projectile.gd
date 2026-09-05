@@ -14,8 +14,9 @@ var damage := 0
 var source: Node
 var tint := Color("#f3c969")
 var speed := SPEED
+var trail_length := 0.0
 
-func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED) -> void:
+func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED, beam_length: float = 0.0) -> void:
 	global_position = origin
 	direction = aim.normalized() if aim.length_squared() > 0.001 else Vector2.RIGHT
 	collision_space = space
@@ -24,6 +25,7 @@ func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, targ
 	source = hit_source
 	tint = color
 	speed = projectile_speed
+	trail_length = maxf(0.0, beam_length)
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -51,6 +53,9 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if trail_length > 0.0:
+		draw_line(-direction * trail_length, direction * 4.0, Color(0.05, 0.1, 0.1, 0.55), 7.0)
+		draw_line(-direction * trail_length, direction * 4.0, tint, 3.0)
 	draw_circle(Vector2.ZERO, RADIUS + 2.0, Color(0.05, 0.1, 0.1, 0.5))
 	draw_circle(Vector2.ZERO, RADIUS, tint)
 	draw_circle(Vector2(-2, -2), 1.8, Color(1, 0.97, 0.75, 0.9))

@@ -7,6 +7,9 @@ var selected_slot := 0
 var language := "zh"
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
+var permanent_pond_grass: Array[Vector2i] = []
+var saxaul_spread_active := false
+var saxaul_spread_origin := Vector2i(-1, -1)
 
 func capture_inventory(inventory: MeadowInventory) -> void:
 	inventory_slots.clear()
@@ -40,3 +43,6 @@ func clear_inventory() -> void:
 	selected_slot = 0
 	orange_seed_granted = false
 	green_plantings_since_mutation = 0
+	permanent_pond_grass.clear()
+	saxaul_spread_active = false
+	saxaul_spread_origin = Vector2i(-1, -1)

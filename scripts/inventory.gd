@@ -118,6 +118,17 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 0,
 		"description": "A valuable fruit from an orange cactus.",
 	},
+	"saxaul_seed": {
+		"name": "Saxaul Seed",
+		"consumable": true,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "saxaul_seed",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "Plant it in a clear 3 by 3 patch of beach sand.",
+	},
 	"lily_seed": {
 		"name": "Water Lily Seed",
 		"consumable": true,
@@ -201,6 +212,7 @@ func get_item_name(item_id: String) -> String:
 			"pea_drop": return "豌豆"
 			"mutated_pea_drop": return "变异豌豆"
 			"cactus_drop": return "仙人掌果实"
+			"saxaul_seed": return "梭梭树种子"
 			"lily_seed": return "睡莲种子"
 			"plant": return "植物"
 			"orange_seed": return "橙色种子"
@@ -218,6 +230,7 @@ func get_item_description(item_id: String) -> String:
 			"pea_drop": return "普通绿色植物掉落的豌豆。"
 			"mutated_pea_drop": return "湖之守望者需要的稀有变异豌豆。"
 			"cactus_drop": return "仙人掌掉落的高价值果实。"
+			"saxaul_seed": return "种在第二个区域一片完整的 3×3 沙地中央。"
 			"lily_seed": return "种在池塘里，可以唤醒湖怪。"
 			"plant": return "成熟植物，可以在商店出售。"
 			"orange_seed": return "种在沙地上，长成会发射扇形弹幕的仙人掌。"
