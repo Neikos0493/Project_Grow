@@ -414,6 +414,15 @@ func _create_collisions() -> void:
 		for cell in footprint:
 			_add_rectangle_collision(map_collisions, cell_to_world(cell), obstacle_size)
 
+	# Invisible world-layer walls keep physics bodies and charge raycasts inside the map.
+	var map_size := get_map_size_pixels()
+	var wall_thickness := float(TILE_SIZE)
+	var half_wall := wall_thickness * 0.5
+	_add_rectangle_collision(map_collisions, Vector2(-half_wall, map_size.y * 0.5), Vector2(wall_thickness, map_size.y + wall_thickness * 2.0))
+	_add_rectangle_collision(map_collisions, Vector2(map_size.x + half_wall, map_size.y * 0.5), Vector2(wall_thickness, map_size.y + wall_thickness * 2.0))
+	_add_rectangle_collision(map_collisions, Vector2(map_size.x * 0.5, -half_wall), Vector2(map_size.x + wall_thickness * 2.0, wall_thickness))
+	_add_rectangle_collision(map_collisions, Vector2(map_size.x * 0.5, map_size.y + half_wall), Vector2(map_size.x + wall_thickness * 2.0, wall_thickness))
+
 	# A low stone lip keeps the lookout safe while leaving its floor walkable.
 	_add_rectangle_collision(
 		map_collisions,
