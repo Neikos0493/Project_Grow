@@ -22,13 +22,13 @@ func get_map_id() -> StringName:
 	return MAP_ID
 
 func get_level_title() -> String:
-	return "绿野" if language == "zh" else "GREENMEADOW"
+	return "世界树之森" if language == "zh" else "WORLD TREE FOREST"
 
 func get_level_subtitle() -> String:
-	return "一处宁静的探索之地" if language == "zh" else "A quiet place to explore"
+	return "伊始之地" if language == "zh" else "The place where it begins"
 
 func get_arrival_message() -> String:
-	return "探索草甸，找到邮箱。" if language == "zh" else "Explore the meadow. Find the mailbox."
+	return "旅途的开始…世界的新生…" if language == "zh" else "The journey begins... a new world is born..."
 
 func get_respawn_message() -> String:
 	return "你回到了绿野。" if language == "zh" else "You returned to Greenmeadow."
@@ -71,8 +71,8 @@ func _build_map() -> void:
 	water_anchor_min = Vector2i(28, 4)
 	water_anchor_max = Vector2i(33, 7)
 	props = [
-		_prop("greenmeadow.mailbox", Vector2i(10, 7), "mailbox", "Read mailbox", "阅读邮箱", "Mailbox: A quiet day. Maybe tomorrow.", "邮箱：今天很安静。也许明天会有消息。"),
-		_prop("greenmeadow.notice_board", Vector2i(20, 12), "notice", "Read notice board", "阅读告示牌", "Notice board: Welcome to the meadow.", "告示牌：欢迎来到草甸。"),
+		_prop("greenmeadow.mailbox", Vector2i(10, 7), "mailbox", "Read mailbox", "阅读邮箱", "Mailbox: A quiet day. Maybe tomorrow.", "也许永远都不会有消息…"),
+		_prop("greenmeadow.notice_board", Vector2i(20, 12), "notice", "Read notice board", "阅读告示牌", "Notice board: Welcome to the meadow.", "…树…守护…世界…"),
 		{
 			"id": "greenmeadow.seed_crate", "cell": Vector2i(25, 17), "kind": "crate", "used": false,
 			"label_en": "Open crate", "label_zh": "打开木箱", "message_en": "You found a seed packet.", "message_zh": "你找到了一包种子。",

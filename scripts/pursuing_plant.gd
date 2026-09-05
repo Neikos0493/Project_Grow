@@ -19,7 +19,8 @@ const PEA_WAIT_FRAME_COUNT := 2
 const PEA_DISPLAY_SCALE := 2.0
 const PEA_COLLISION_RADIUS := 14.0
 const PEA_WAIT_CONTENT_OFFSET := Vector2(22.0, 3.0)
-const ATTACK_RANGE := 210.0
+const SPAWN_GRACE_DURATION := 1.0
+const ATTACK_RANGE := 240.0
 const JUMP_DURATION := 0.55
 const JUMP_HEIGHT := 34.0
 const HIT_RANGE := 28.0
@@ -41,6 +42,7 @@ var jump_origin := Vector2.ZERO
 var jump_target := Vector2.ZERO
 var jump_faces_right := false
 var knockback_velocity := Vector2.ZERO
+var spawn_grace_remaining := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map_world: MeadowWorld) -> void:
 	cell = plant_cell
@@ -60,6 +62,7 @@ func capture_state() -> Dictionary:
 		"age": clampf(age, 0.0, GROW_TIME),
 		"mature": mature,
 		"jump_cooldown_remaining": maxf(0.0, jump_cooldown_remaining),
+		"spawn_grace_remaining": clampf(spawn_grace_remaining, 0.0, SPAWN_GRACE_DURATION),
 	}
 
 func restore_state(data: Dictionary) -> void:
@@ -74,6 +77,7 @@ func restore_state(data: Dictionary) -> void:
 	if mature:
 		age = GROW_TIME
 	jump_cooldown_remaining = clampf(float(data.get("jump_cooldown_remaining", 0.0)), 0.0, JUMP_COOLDOWN)
+	spawn_grace_remaining = clampf(float(data.get("spawn_grace_remaining", 0.0)), 0.0, SPAWN_GRACE_DURATION)
 	dead = false
 	jumping = false
 	jump_elapsed = 0.0
@@ -112,16 +116,24 @@ func _get_collision_radius() -> float:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
-	if knockback_velocity.length_squared() > 0.01 and not jumping:
-		global_position += knockback_velocity * delta
-		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 220.0 * delta)
-	age += delta
 	if not mature:
+		age += delta
 		if age >= GROW_TIME:
 			mature = true
+			spawn_grace_remaining = SPAWN_GRACE_DURATION
+			knockback_velocity = Vector2.ZERO
 			matured.emit(cell)
 			queue_redraw()
 		return
+	if spawn_grace_remaining > 0.0:
+		spawn_grace_remaining = maxf(0.0, spawn_grace_remaining - delta)
+		knockback_velocity = Vector2.ZERO
+		velocity = Vector2.ZERO
+		return
+	if knockback_velocity.length_squared() > 0.01 and not jumping:
+		global_position += knockback_velocity * delta
+		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 220.0 * delta)
+	age = GROW_TIME
 	if not is_instance_valid(target) or target.dead:
 		velocity = Vector2.ZERO
 		return
@@ -158,7 +170,7 @@ func _update_jump(delta: float) -> void:
 	queue_redraw()
 
 func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
-	if dead or jumping or direction.length_squared() < 0.01:
+	if dead or jumping or spawn_grace_remaining > 0.0 or direction.length_squared() < 0.01:
 		return
 	knockback_velocity = direction.normalized() * maxf(0.0, strength)
 
@@ -166,7 +178,7 @@ func get_damage_number_position() -> Vector2:
 	return global_position + Vector2(0, -34)
 
 func take_damage(amount: int = 1) -> bool:
-	if dead or not mature or amount <= 0:
+	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
 	queue_redraw()

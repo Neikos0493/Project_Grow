@@ -34,6 +34,14 @@ corner_radius_top_right = 5
 corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
 
+[sub_resource type="StyleBoxFlat" id="StyleBox_boss_outline"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+
 [sub_resource type="StyleBoxFlat" id="StyleBox_radar_point"]
 bg_color = Color(0.24, 0.58, 0.48, 1)
 border_width_left = 2
@@ -69,7 +77,7 @@ script = ExtResource("2_map_host")
 process_mode = 1
 z_index = 10
 collision_layer = 2
-collision_mask = 9
+collision_mask = 25
 motion_mode = 1
 script = ExtResource("3_player")
 
@@ -155,6 +163,33 @@ theme_override_font_sizes/font_size = 14
 text = "HP  5/5"
 horizontal_alignment = 2
 
+[node name="BossCompletion" type="Control" parent="HUD"]
+offset_left = 756.0
+offset_top = 53.0
+offset_right = 936.0
+offset_bottom = 70.0
+mouse_filter = 2
+
+[node name="Label" type="Label" parent="HUD/BossCompletion"]
+offset_left = -78.0
+offset_top = 0.0
+offset_right = -4.0
+offset_bottom = 18.0
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 10
+text = "BOSS"
+horizontal_alignment = 2
+
+[node name="Track" type="ColorRect" parent="HUD/BossCompletion"]
+offset_right = 180.0
+offset_bottom = 12.0
+color = Color(0.12, 0.16, 0.14, 1)
+
+[node name="Fill" type="ColorRect" parent="HUD/BossCompletion/Track"]
+offset_right = 0.0
+offset_bottom = 12.0
+color = Color(0.25, 0.8, 0.38, 1)
+
 [node name="BossBar" type="Control" parent="HUD"]
 z_index = 40
 offset_left = 170.0
@@ -173,8 +208,16 @@ theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
 theme_override_colors/font_outline_color = Color(0.055, 0.11, 0.13, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 13
-text = "LAKE MONSTER"
+text = "WATER LILY"
 horizontal_alignment = 1
+
+[node name="Outline" type="Panel" parent="HUD/BossBar"]
+offset_left = -2.0
+offset_top = 18.0
+offset_right = 622.0
+offset_bottom = 37.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_boss_outline")
 
 [node name="Track" type="ColorRect" parent="HUD/BossBar"]
 offset_left = 0.0
@@ -357,6 +400,26 @@ offset_bottom = 112.0
 theme_override_colors/font_color = Color(0.88, 0.93, 0.81, 1)
 theme_override_font_sizes/font_size = 16
 autowrap_mode = 2
+
+[node name="ChoiceButton" type="Button" parent="HUD/DialogueBox/Panel"]
+offset_left = 390.0
+offset_top = 48.0
+offset_right = 636.0
+offset_bottom = 82.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 14
+text = "交付「？？？」"
+
+[node name="ContinueButton" type="Button" parent="HUD/DialogueBox/Panel"]
+offset_left = 390.0
+offset_top = 88.0
+offset_right = 636.0
+offset_bottom = 122.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.64, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "继续"
 
 [node name="Hint" type="Label" parent="HUD/DialogueBox/Panel"]
 layout_mode = 0

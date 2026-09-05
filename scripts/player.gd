@@ -13,6 +13,7 @@ const MOVE_DECELERATION := 980.0
 const MAX_HEALTH := 5
 const CHARACTER_FRAME_COUNT := 4
 const CHARACTER_ANIMATION_FPS := 8.0
+const OUT_OF_COMBAT_DELAY := 1.0
 
 const CHARACTER_SHEETS := {
 	"idle_down": ["res://image/Character/character-wait-Sheet.png", 22, 31],
@@ -31,6 +32,7 @@ var controls_locked := false
 var facing := Vector2.DOWN
 var health := MAX_HEALTH
 var dead := false
+var time_since_damage := OUT_OF_COMBAT_DELAY
 
 func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
@@ -40,6 +42,8 @@ func _ready() -> void:
 	health_changed.emit(health, MAX_HEALTH)
 
 func _physics_process(delta: float) -> void:
+	if not dead:
+		time_since_damage += delta
 	if controls_locked or dead:
 		velocity = velocity.move_toward(Vector2.ZERO, MOVE_DECELERATION * delta)
 		_update_character_animation()
@@ -125,6 +129,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func restore_state(saved_health: int) -> void:
 	health = clampi(saved_health, 0, MAX_HEALTH)
+	time_since_damage = OUT_OF_COMBAT_DELAY
 	dead = health == 0
 	controls_locked = dead
 	velocity = Vector2.ZERO
@@ -135,6 +140,7 @@ func restore_state(saved_health: int) -> void:
 func take_damage(amount: int = 1) -> bool:
 	if dead or amount <= 0:
 		return false
+	time_since_damage = 0.0
 	health = maxi(0, health - amount)
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
@@ -145,12 +151,27 @@ func take_damage(amount: int = 1) -> bool:
 		died.emit()
 	return true
 
+func heal(amount: int = 1) -> bool:
+	if dead or amount <= 0 or health >= MAX_HEALTH:
+		return false
+	var previous_health := health
+	health = mini(MAX_HEALTH, health + amount)
+	if health == previous_health:
+		return false
+	health_changed.emit(health, MAX_HEALTH)
+	queue_redraw()
+	return true
+
+func is_out_of_combat() -> bool:
+	return not dead and time_since_damage >= OUT_OF_COMBAT_DELAY
+
 func respawn_at(spawn_global_position: Vector2) -> bool:
 	if not dead:
 		return false
 	global_position = spawn_global_position
 	velocity = Vector2.ZERO
 	health = MAX_HEALTH
+	time_since_damage = OUT_OF_COMBAT_DELAY
 	dead = false
 	controls_locked = false
 	_update_character_animation()

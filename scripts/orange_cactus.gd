@@ -8,7 +8,8 @@ signal died(cell: Vector2i, position: Vector2)
 
 const GROW_TIME := 3.0
 const MAX_HEALTH := 5
-const ATTACK_RANGE := 230.0
+const SPAWN_GRACE_DURATION := 1.0
+const ATTACK_RANGE := 260.0
 const MOVE_SPEED := 28.0
 const WANDER_INTERVAL := 2.4
 const VOLLEY_COOLDOWN := 1.6
@@ -29,6 +30,7 @@ var volley_timer := 0.8
 var facing := Vector2.RIGHT
 var wander_direction := Vector2.ZERO
 var leaf_wave := 0.0
+var spawn_grace_remaining := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map_world: MeadowWorld) -> void:
 	cell = plant_cell
@@ -55,6 +57,7 @@ func capture_state() -> Dictionary:
 		"volley_timer": clampf(volley_timer, 0.0, VOLLEY_COOLDOWN),
 		"facing": [map_facing.x, map_facing.y],
 		"wander_direction": [map_wander_direction.x, map_wander_direction.y],
+		"spawn_grace_remaining": clampf(spawn_grace_remaining, 0.0, SPAWN_GRACE_DURATION),
 	}
 
 func restore_state(data: Dictionary) -> void:
@@ -70,6 +73,7 @@ func restore_state(data: Dictionary) -> void:
 		age = GROW_TIME
 	wander_timer = clampf(float(data.get("wander_timer", WANDER_INTERVAL)), 0.0, WANDER_INTERVAL)
 	volley_timer = clampf(float(data.get("volley_timer", VOLLEY_COOLDOWN)), 0.0, VOLLEY_COOLDOWN)
+	spawn_grace_remaining = clampf(float(data.get("spawn_grace_remaining", 0.0)), 0.0, SPAWN_GRACE_DURATION)
 	var map_facing := _data_to_direction(data.get("facing", []), Vector2.RIGHT, false)
 	facing = world.map_direction_to_global(map_facing).normalized() if is_instance_valid(world) else map_facing
 	var map_wander_direction := _data_to_direction(data.get("wander_direction", []), Vector2.ZERO, true)
@@ -111,16 +115,25 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
-	age += delta
 	if not mature:
+		age += delta
 		if age >= GROW_TIME:
 			mature = true
+			spawn_grace_remaining = SPAWN_GRACE_DURATION
+			wander_direction = Vector2.ZERO
+			velocity = Vector2.ZERO
 			matured.emit(cell)
 			queue_redraw()
+		return
+	if spawn_grace_remaining > 0.0:
+		spawn_grace_remaining = maxf(0.0, spawn_grace_remaining - delta)
+		wander_direction = Vector2.ZERO
+		velocity = Vector2.ZERO
 		return
 	if not is_instance_valid(target) or target.dead:
 		velocity = Vector2.ZERO
 		return
+	age = GROW_TIME
 	leaf_wave += delta * 10.0
 	wander_timer -= delta
 	volley_timer = maxf(0.0, volley_timer - delta)
@@ -149,7 +162,7 @@ func _fire_leaf_fan(direction: Vector2) -> void:
 	projectile_requested.emit(global_position, directions)
 
 func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
-	if dead or direction.length_squared() < 0.01:
+	if dead or spawn_grace_remaining > 0.0 or direction.length_squared() < 0.01:
 		return
 	global_position += direction.normalized() * strength * 0.15
 
@@ -157,7 +170,7 @@ func get_damage_number_position() -> Vector2:
 	return global_position + Vector2(0, -42)
 
 func take_damage(amount: int = 1) -> bool:
-	if dead or not mature or amount <= 0:
+	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
 	queue_redraw()

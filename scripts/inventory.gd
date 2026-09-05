@@ -30,6 +30,28 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 5,
 		"description": "Plant it on tilled soil to grow a meadow plant.",
 	},
+	"bean_seed": {
+		"name": "Small Seed",
+		"consumable": true,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "bean_seed",
+		"sell_price": 2,
+		"buy_price": 5,
+		"description": "A seed that may grow into something unexpected.",
+	},
+	"sunglasses": {
+		"name": "Sunglasses",
+		"consumable": false,
+		"droppable": true,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "sunglasses",
+		"sell_price": 0,
+		"buy_price": 25,
+		"description": "A pair of shades for the desert sun.",
+	},
 	"yellow_ball": {
 		"name": "Yellow Ball",
 		"consumable": false,
@@ -42,7 +64,7 @@ const ITEM_DEFINITIONS := {
 		"description": "Launches a bright projectile through the meadow.",
 	},
 	"melee_weapon": {
-		"name": "Meadow Blade",
+		"name": "The Village's Best Sword",
 		"consumable": false,
 		"droppable": false,
 		"show_count": false,
@@ -87,17 +109,17 @@ const ITEM_DEFINITIONS := {
 	},
 	"pea_drop": {
 		"name": "Pea",
-		"consumable": false,
+		"consumable": true,
 		"droppable": true,
 		"show_count": true,
 		"max_stack": MAX_STACK,
 		"icon": "pea_drop",
 		"sell_price": 20,
 		"buy_price": 0,
-		"description": "A pea harvested from an ordinary green plant.",
+		"description": "May be edible.",
 	},
 	"mutated_pea_drop": {
-		"name": "Mutated Pea",
+		"name": "Golden Pea",
 		"consumable": false,
 		"droppable": true,
 		"show_count": true,
@@ -105,7 +127,7 @@ const ITEM_DEFINITIONS := {
 		"icon": "mutated_pea_drop",
 		"sell_price": 0,
 		"buy_price": 0,
-		"description": "A rare mutated pea wanted by the lake keeper.",
+		"description": "A golden pea that can awaken the lake monster.",
 	},
 	"cactus_drop": {
 		"name": "Cactus Fruit",
@@ -236,11 +258,13 @@ func get_item_name(item_id: String) -> String:
 	if language == "zh":
 		match item_id:
 			"hoe": return "锄头"
-			"green_seed": return "绿种子"
+			"green_seed": return "个头稍大的种子"
+			"bean_seed": return "个头稍小的种子"
+			"sunglasses": return "墨镜"
 			"yellow_ball": return "黄色球"
-			"melee_weapon": return "草甸之刃"
+			"melee_weapon": return "村里最好的剑"
 			"pea_drop": return "豌豆"
-			"mutated_pea_drop": return "变异豌豆"
+			"mutated_pea_drop": return "金色豌豆"
 			"cactus_drop": return "仙人掌果实"
 			"saxaul_seed": return "梭梭树种子"
 			"lily_seed": return "睡莲种子"
@@ -254,11 +278,13 @@ func get_item_description(item_id: String) -> String:
 	if language == "zh":
 		match item_id:
 			"hoe": return "将附近的草地翻耕成可种植的土地。"
-			"green_seed": return "种在翻耕土地上，长成草甸植物。"
+			"green_seed": return "或许能种出些不一般的东西"
+			"bean_seed": return "不知道能种出些什么东西"
+			"sunglasses": return "给沙漠里的太阳戴上墨镜。"
 			"yellow_ball": return "向草甸发射明亮的投射物。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
-			"pea_drop": return "普通绿色植物掉落的豌豆。"
-			"mutated_pea_drop": return "湖之守望者需要的稀有变异豌豆。"
+			"pea_drop": return "或许能吃"
+			"mutated_pea_drop": return "湖之守望者需要的稀有金色豌豆。"
 			"cactus_drop": return "仙人掌掉落的高价值果实。"
 			"saxaul_seed": return "种在第二个区域一片完整的 3×3 沙地中央。"
 			"lily_seed": return "种在池塘里，可以唤醒湖怪。"

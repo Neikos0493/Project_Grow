@@ -4,6 +4,7 @@ extends Control
 
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
 const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
+const BEAN_SEED_TEXTURE := preload("res://image/shop/beanSeed.png")
 
 var inventory: MeadowInventory
 
@@ -58,6 +59,15 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_circle(center + Vector2(0, 2), 13.0, Color(0.05, 0.1, 0.1, 0.45))
 		draw_circle(center, 11.0, Color("#f3c969"))
 		draw_circle(center + Vector2(-4, -4), 3.0, Color(1, 0.95, 0.7, 0.75))
+	elif icon == "bean_seed":
+		var bean_icon_size := Vector2(25.0, 25.0)
+		draw_texture_rect(BEAN_SEED_TEXTURE, Rect2(center - bean_icon_size * 0.5, bean_icon_size), false)
+	elif icon == "sunglasses":
+		draw_line(center + Vector2(-12, -2), center + Vector2(-2, -2), Color("#273746"), 4.0)
+		draw_line(center + Vector2(2, -2), center + Vector2(12, -2), Color("#273746"), 4.0)
+		draw_line(center + Vector2(-2, -2), center + Vector2(2, -2), Color("#273746"), 3.0)
+		draw_line(center + Vector2(-12, -2), center + Vector2(-16, -6), Color("#273746"), 3.0)
+		draw_line(center + Vector2(12, -2), center + Vector2(16, -6), Color("#273746"), 3.0)
 	elif icon == "green_seed":
 		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 9.0, Color("#59b35b"))
@@ -75,8 +85,8 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#ead3ff"), false, 2.0)
 		draw_circle(center, 3.0, Color("#fff0a8"))
 	elif icon == "pea_drop":
-		draw_circle(center + Vector2(-4, 2), 6.0, Color("#8bcf62"))
-		draw_circle(center + Vector2(5, -3), 6.0, Color("#70b94f"))
+		var pea_texture := preload("res://image/Monster_pea/Bean.png")
+		draw_texture_rect(pea_texture, Rect2(center - Vector2(14, 14), Vector2(28, 28)), false)
 	elif icon == "mutated_pea_drop":
 		draw_circle(center, 10.0, Color("#f3c969"))
 		draw_circle(center + Vector2(-3, -3), 3.0, Color("#fff1a8"))

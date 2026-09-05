@@ -18,9 +18,12 @@ const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
 const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
+const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss"]
 const KNOWN_ITEM_IDS := {
 	"hoe": 1,
 	"green_seed": 64,
+	"bean_seed": 64,
+	"sunglasses": 1,
 	"orange_seed": 64,
 	"yellow_ball": 1,
 	"melee_weapon": 1,
@@ -48,6 +51,11 @@ var last_load_used_backup := false
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
 var world_tree_blessing_unlocked := false
+var defeated_boss_ids: Array[StringName] = []
+var container_energy := 0
+var sunflower_quest_state := 0
+var map_two_return_count := 0
+var pea_npc_state := 0
 
 func _ready() -> void:
 	if not session_initialized:
@@ -68,6 +76,11 @@ func reset_session() -> void:
 	orange_seed_granted = false
 	green_plantings_since_mutation = 0
 	world_tree_blessing_unlocked = false
+	defeated_boss_ids.clear()
+	container_energy = 0
+	sunflower_quest_state = 0
+	map_two_return_count = 0
+	pea_npc_state = 0
 
 func ensure_session() -> void:
 	if not session_initialized:
@@ -78,6 +91,12 @@ func capture_global(inventory: MeadowInventory, next_coins: int, health: int, ne
 	coins = clampi(next_coins, 0, MAX_COINS)
 	player_health = clampi(health, 0, MAX_HEALTH)
 	quest_state = clampi(next_quest_state, QUEST_STATE_MIN, QUEST_STATE_MAX)
+	container_energy = clampi(container_energy, 0, 100)
+	var valid_bosses: Array[StringName] = []
+	for boss_id in defeated_boss_ids:
+		if boss_id in KNOWN_BOSS_IDS and boss_id not in valid_bosses:
+			valid_bosses.append(boss_id)
+	defeated_boss_ids = valid_bosses
 
 func set_map_state(map_id: StringName, state: Dictionary) -> bool:
 	if map_id not in KNOWN_MAP_IDS:
@@ -207,6 +226,11 @@ func _build_save_data() -> Dictionary:
 			"orange_seed_granted": orange_seed_granted,
 			"green_plantings_since_mutation": green_plantings_since_mutation,
 			"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+			"defeated_boss_ids": _boss_ids_to_strings(),
+			"container_energy": container_energy,
+			"sunflower_quest_state": sunflower_quest_state,
+			"map_two_return_count": map_two_return_count,
+			"pea_npc_state": pea_npc_state,
 			"unlocked_map_ids": unlocked,
 		},
 		"maps": maps,
@@ -275,6 +299,21 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 	if String(&"greenmeadow") not in unlocked:
 		unlocked.append(String(&"greenmeadow"))
 	var world_tree_blessing_unlocked := bool(data.get("world_tree_blessing_unlocked", false))
+	var defeated_value: Variant = data.get("defeated_boss_ids", [])
+	if not data.has("defeated_boss_ids"):
+		defeated_value = []
+		if int(data.get("quest_state", QUEST_STATE_MIN)) == QUEST_STATE_MAX:
+			defeated_value = ["lake_monster"]
+	if not defeated_value is Array:
+		return {}
+	var normalized_bosses: Array[String] = []
+	for value in defeated_value:
+		var boss_id := StringName(str(value))
+		if boss_id not in KNOWN_BOSS_IDS:
+			return {}
+		if String(boss_id) not in normalized_bosses:
+			normalized_bosses.append(String(boss_id))
+	var energy := mini(100, normalized_bosses.size() * 50)
 	if not world_tree_blessing_unlocked:
 		unlocked.erase(String(&"sunset_shore"))
 	return {
@@ -285,6 +324,11 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"orange_seed_granted": bool(data.get("orange_seed_granted", false)),
 		"green_plantings_since_mutation": clampi(int(data.get("green_plantings_since_mutation", 0)), 0, 9),
 		"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+		"defeated_boss_ids": normalized_bosses,
+		"container_energy": energy,
+		"sunflower_quest_state": clampi(int(data.get("sunflower_quest_state", 0)), 0, 2),
+		"map_two_return_count": clampi(int(data.get("map_two_return_count", 0)), 0, 2),
+		"pea_npc_state": clampi(int(data.get("pea_npc_state", 0)), 0, 2),
 		"unlocked_map_ids": unlocked,
 	}
 
@@ -497,6 +541,7 @@ func _normalize_entities(map_id: StringName, entries: Array) -> Variant:
 				"age": clampf(float(value.get("age", 0.0)), 0.0, 3.0),
 				"mature": bool(value.get("mature", false)),
 				"jump_cooldown_remaining": clampf(float(value.get("jump_cooldown_remaining", 0.0)), 0.0, 1.1),
+				"spawn_grace_remaining": clampf(float(value.get("spawn_grace_remaining", 0.0)), 0.0, MeadowPursuingPlant.SPAWN_GRACE_DURATION),
 			})
 		elif kind == "orange_cactus":
 			var facing: Variant = _normalize_direction(value.get("facing", []))
@@ -515,6 +560,7 @@ func _normalize_entities(map_id: StringName, entries: Array) -> Variant:
 				"volley_timer": clampf(float(value.get("volley_timer", 0.0)), 0.0, 1.6),
 				"facing": facing,
 				"wander_direction": wander_direction,
+				"spawn_grace_remaining": clampf(float(value.get("spawn_grace_remaining", 0.0)), 0.0, MeadowOrangeCactus.SPAWN_GRACE_DURATION),
 			})
 		else:
 			var skill_direction: Variant = _normalize_direction(
@@ -559,6 +605,7 @@ func _normalize_entities(map_id: StringName, entries: Array) -> Variant:
 				"ring_duration_remaining": clampf(float(value.get("ring_duration_remaining", 0.0)), 0.0, MeadowSaxaulBoss.RING_DURATION),
 				"ring_pulse_remaining": clampf(float(value.get("ring_pulse_remaining", 0.0)), 0.0, MeadowSaxaulBoss.RING_PULSE_INTERVAL),
 				"skill_windup": clampf(float(value.get("skill_windup", 0.0)), 0.0, MeadowSaxaulBoss.SKILL_WINDUP),
+				"spawn_grace_remaining": clampf(float(value.get("spawn_grace_remaining", 0.0)), 0.0, MeadowSaxaulBoss.SPAWN_GRACE_DURATION),
 				"skill_target_direction": skill_direction,
 				"small_vine_origins": vine_origins,
 			})
@@ -623,7 +670,13 @@ func _normalize_monster(data: Dictionary) -> Variant:
 	var facing: Variant = _normalize_direction(data.get("facing", []))
 	if entity_id.is_empty() or position == null or facing == null:
 		return null
-	var state := "stunned" if str(data.get("state", "chase")) == "stunned" else "chase"
+	var saved_state := str(data.get("state", "chase"))
+	if saved_state == "charge_windup":
+		saved_state = "rush_windup"
+	elif saved_state == "charging":
+		saved_state = "rushing"
+	var state := saved_state if saved_state in ["emerging", "chase", "attack", "attack_pause", "rush_windup", "rushing", "rush_end", "stunned"] else "chase"
+	var faces_left := bool(data.get("faces_left", float(facing[0]) < 0.0))
 	return {
 		"kind": "lake_monster",
 		"entity_id": entity_id,
@@ -631,7 +684,16 @@ func _normalize_monster(data: Dictionary) -> Variant:
 		"health": clampi(int(data.get("health", MeadowLakeMonster.MAX_HEALTH)), 1, MeadowLakeMonster.MAX_HEALTH),
 		"state": state,
 		"stun_remaining": clampf(float(data.get("stun_remaining", 0.0)), 0.0, MeadowLakeMonster.STUN_DURATION) if state == "stunned" else 0.0,
+		"state_elapsed": clampf(float(data.get("state_elapsed", 0.0)), 0.0, MeadowLakeMonster.state_elapsed_limit(state)),
+		"attacks_done": clampi(int(data.get("attacks_done", 0)), 0, MeadowLakeMonster.ATTACKS_BEFORE_RUSH),
+		"rush_should_stun": bool(data.get("rush_should_stun", false)),
+		"charge_direction": _normalize_direction(data.get("charge_direction", [1.0, 0.0])) if state == "rushing" else [1.0, 0.0],
+		"charge_endpoint": _normalize_position(data.get("charge_endpoint", position), position, true),
+		"charge_hit_player": bool(data.get("charge_hit_player", false)),
+		"contact_damage_remaining": clampf(float(data.get("contact_damage_remaining", 0.0)), 0.0, MeadowLakeMonster.CONTACT_DAMAGE_COOLDOWN),
+		"spawn_grace_remaining": clampf(float(data.get("spawn_grace_remaining", 0.0)), 0.0, MeadowLakeMonster.SPAWN_GRACE_DURATION),
 		"facing": facing,
+		"faces_left": faces_left,
 	}
 
 func _normalize_cell(value: Variant) -> Variant:
@@ -688,17 +750,50 @@ func _apply_valid_save(data: Dictionary) -> void:
 	orange_seed_granted = bool(global_data.get("orange_seed_granted", false))
 	green_plantings_since_mutation = int(global_data.get("green_plantings_since_mutation", 0))
 	world_tree_blessing_unlocked = bool(global_data.get("world_tree_blessing_unlocked", false))
+	defeated_boss_ids.clear()
+	for value in global_data.get("defeated_boss_ids", []):
+		var boss_id := StringName(str(value))
+		if boss_id in KNOWN_BOSS_IDS and boss_id not in defeated_boss_ids:
+			defeated_boss_ids.append(boss_id)
+	container_energy = clampi(int(global_data.get("container_energy", defeated_boss_ids.size() * 50)), 0, 100)
+	sunflower_quest_state = clampi(int(global_data.get("sunflower_quest_state", 0)), 0, 2)
+	map_two_return_count = clampi(int(global_data.get("map_two_return_count", 0)), 0, 2)
+	pea_npc_state = clampi(int(global_data.get("pea_npc_state", 0)), 0, 2)
 	unlocked_map_ids.clear()
 	for value in global_data["unlocked_map_ids"]:
 		unlocked_map_ids.append(StringName(str(value)))
 	map_states = data["maps"].duplicate(true)
+
+func has_defeated_boss(boss_id: StringName) -> bool:
+	return boss_id in defeated_boss_ids
+
+func record_boss_defeat(boss_id: StringName) -> bool:
+	if boss_id not in KNOWN_BOSS_IDS or boss_id in defeated_boss_ids:
+		return false
+	defeated_boss_ids.append(boss_id)
+	container_energy = clampi(maxi(container_energy, defeated_boss_ids.size() * 50), 0, 100)
+	return true
+
+func get_defeated_boss_count() -> int:
+	var count := 0
+	for boss_id in KNOWN_BOSS_IDS:
+		if boss_id in defeated_boss_ids:
+			count += 1
+	return count
+
+func _boss_ids_to_strings() -> Array[String]:
+	var result: Array[String] = []
+	for boss_id in defeated_boss_ids:
+		if boss_id in KNOWN_BOSS_IDS and String(boss_id) not in result:
+			result.append(String(boss_id))
+	return result
 
 func _default_inventory_state() -> Dictionary:
 	return {
 		"slots": [
 			{"id": "hoe", "count": 1},
 			{"id": "green_seed", "count": 6},
-			{"id": "yellow_ball", "count": 1},
+			{"id": "", "count": 0},
 			{"id": "melee_weapon", "count": 1},
 			{"id": "", "count": 0},
 		],

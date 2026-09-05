@@ -18,16 +18,16 @@ func supports_saxaul_encounter() -> bool:
 	return true
 
 func get_level_title() -> String:
-	return "日落海岸" if language == "zh" else "SUNSET SHORE"
+	return "风蚀沙壑" if language == "zh" else "WIND-SCARRED GORGE"
 
 func get_level_subtitle() -> String:
-	return "海风吹过沙丘与栈道" if language == "zh" else "Sea wind moves across dunes and boardwalks"
+	return "风卷起沙尘与利刃" if language == "zh" else "Wind raises dust and blades"
 
 func get_arrival_message() -> String:
-	return "日落海岸已抵达。" if language == "zh" else "Sunset Shore reached."
+	return "风蚀沙壑已抵达。" if language == "zh" else "Wind-Scarred Gorge reached."
 
 func get_respawn_message() -> String:
-	return "你回到了日落海岸。" if language == "zh" else "You returned to Sunset Shore."
+	return "你回到了风蚀沙壑。" if language == "zh" else "You returned to Wind-Scarred Gorge."
 
 func get_initial_spawn_cell() -> Vector2i:
 	return PLAYER_START_CELL
@@ -89,10 +89,21 @@ func _build_map() -> void:
 			"cell": Vector2i(8, 8),
 			"kind": "ranger",
 			"used": false,
-			"label_en": "Talk to the ranger",
-			"label_zh": "与护林员交谈",
-			"message_en": "Ranger: Welcome to Sunset Shore.",
-			"message_zh": "护林员：欢迎来到日落海岸。",
+			"label_en": "Talk to the mysterious sunflower",
+			"label_zh": "与迷之向日葵交谈",
+			"message_en": "The mysterious sunflower watches the desert.",
+			"message_zh": "迷之向日葵注视着荒漠。",
+		},
+		{
+			"id": "sunset_shore.pea_npc",
+			"cell": Vector2i(10, 8),
+			"kind": "pea_npc",
+			"used": false,
+			"label_en": "Talk to Pea, maybe?",
+			"label_zh": "与豌豆吗？交谈",
+			"message_en": "Pea, maybe?: Hello.",
+			"message_zh": "豌豆吗？：你好。",
+			"no_collision": true,
 		},
 		{
 			"id": "sunset_shore.ship",

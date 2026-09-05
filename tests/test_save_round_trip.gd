@@ -52,7 +52,7 @@ static func run(game_state: Node) -> Array[String]:
 	return failures
 
 static func _test_item_normalization(game_state: Node, payload: Dictionary, failures: Array[String]) -> void:
-	var item_ids: Array[String] = ["pea_drop", "mutated_pea_drop", "cactus_drop", "saxaul_seed", "lily_seed", "plant", "blue_seed"]
+	var item_ids: Array[String] = ["pea_drop", "mutated_pea_drop", "cactus_drop", "saxaul_seed", "lily_seed", "plant", "blue_seed", "bean_seed", "sunglasses"]
 	var stack_limits: Dictionary = {
 		"pea_drop": 64,
 		"mutated_pea_drop": 64,
@@ -61,6 +61,8 @@ static func _test_item_normalization(game_state: Node, payload: Dictionary, fail
 		"lily_seed": 1,
 		"plant": 64,
 		"blue_seed": 1,
+		"bean_seed": 64,
+		"sunglasses": 1,
 	}
 	for item_id in item_ids:
 		var inventory_payload := payload.duplicate(true)
@@ -159,6 +161,7 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 			"age": 1.0,
 			"mature": false,
 			"jump_cooldown_remaining": 0.0,
+			"spawn_grace_remaining": 0.4,
 		})
 	var entity_payload := payload.duplicate(true)
 	entity_payload["maps"]["greenmeadow"]["entities"] = entities
@@ -168,6 +171,7 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 		var accepted_entities: Array = normalized_entities["maps"]["greenmeadow"]["entities"]
 		_check(accepted_entities.size() == MeadowWorld.MAX_PERSISTED_PLANTS, "Accepted entity DTO retains all 256 uniquely identified plants", failures)
 		_check(bool(accepted_entities[0].get("mutated", false)) and not bool(accepted_entities[1].get("mutated", true)), "Plant mutation identity survives DTO normalization", failures)
+		_check(is_equal_approx(float(accepted_entities[0].get("spawn_grace_remaining", 0.0)), 0.4), "Plant spawn grace survives DTO normalization", failures)
 	var duplicate_payload := entity_payload.duplicate(true)
 	duplicate_payload["maps"]["greenmeadow"]["entities"][1]["entity_id"] = duplicate_payload["maps"]["greenmeadow"]["entities"][0]["entity_id"]
 	_check(game_state._normalize_save(duplicate_payload).is_empty(), "Duplicate ordinary-plant entity IDs are rejected", failures)
@@ -175,6 +179,14 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 	extra_entity["entity_id"] = "greenmeadow:plant:257"
 	entity_payload["maps"]["greenmeadow"]["entities"].append(extra_entity)
 	_check(game_state._normalize_save(entity_payload).is_empty(), "A save with 257 plants is rejected", failures)
+	var grace_clamp_payload := payload.duplicate(true)
+	grace_clamp_payload["maps"]["greenmeadow"]["entities"] = [entities[0].duplicate(true)]
+	grace_clamp_payload["maps"]["greenmeadow"]["entities"][0]["spawn_grace_remaining"] = 4.0
+	var normalized_grace_clamp: Dictionary = game_state._normalize_save(grace_clamp_payload)
+	_check(not normalized_grace_clamp.is_empty(), "An oversized spawn grace value is normalized", failures)
+	if not normalized_grace_clamp.is_empty():
+		var clamped_entity: Dictionary = normalized_grace_clamp["maps"]["greenmeadow"]["entities"][0]
+		_check(is_equal_approx(float(clamped_entity.get("spawn_grace_remaining", 0.0)), 1.0), "Spawn grace is clamped to one second", failures)
 	var saxaul_payload := payload.duplicate(true)
 	saxaul_payload["maps"]["sunset_shore"]["entities"] = [_saxaul_state(false)]
 	var normalized_saxaul: Dictionary = game_state._normalize_save(saxaul_payload)
@@ -182,6 +194,7 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 	if not normalized_saxaul.is_empty():
 		var saxaul: Dictionary = normalized_saxaul["maps"]["sunset_shore"]["entities"][0]
 		_check(str(saxaul.get("kind", "")) == "saxaul_boss", "Saxaul boss identity survives DTO normalization", failures)
+		_check(is_equal_approx(float(saxaul.get("spawn_grace_remaining", 0.0)), 0.4), "Saxaul spawn grace survives DTO normalization", failures)
 		_check(int(saxaul.get("health", 0)) == MeadowSaxaulBoss.MAX_HEALTH, "Saxaul boss health survives DTO normalization", failures)
 	var dead_saxaul_payload := payload.duplicate(true)
 	dead_saxaul_payload["maps"]["sunset_shore"]["entities"] = [_saxaul_state(true)]
@@ -199,6 +212,7 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 	_check(not normalized_cactus.is_empty(), "A Sunset Shore orange cactus DTO is accepted", failures)
 	if not normalized_cactus.is_empty():
 		_check(str(normalized_cactus["maps"]["sunset_shore"]["entities"][0].get("kind", "")) == "orange_cactus", "Orange cactus identity survives DTO normalization", failures)
+		_check(is_equal_approx(float(normalized_cactus["maps"]["sunset_shore"]["entities"][0].get("spawn_grace_remaining", 0.0)), 0.4), "Orange cactus spawn grace survives DTO normalization", failures)
 	var wrong_map_cactus := payload.duplicate(true)
 	wrong_map_cactus["maps"]["greenmeadow"]["entities"] = [_orange_cactus_state()]
 	_check(game_state._normalize_save(wrong_map_cactus).is_empty(), "Greenmeadow rejects Sunset Shore cactus entities", failures)
@@ -213,7 +227,13 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 			"health": MeadowLakeMonster.MAX_HEALTH,
 			"state": "stunned",
 			"stun_remaining": MeadowLakeMonster.STUN_DURATION,
+			"state_elapsed": 0.0,
+			"attacks_done": 1,
+			"rush_should_stun": true,
+			"contact_damage_remaining": 0.25,
+			"spawn_grace_remaining": 0.4,
 			"facing": [0.0, 1.0],
+			"faces_left": false,
 		},
 	}
 	var normalized_monster: Dictionary = game_state._normalize_save(monster_payload)
@@ -222,6 +242,12 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 		var monster: Dictionary = normalized_monster["maps"]["greenmeadow"]["encounter"]["monster"]
 		_check(int(monster.get("health", 0)) == MeadowLakeMonster.MAX_HEALTH, "Lake monster health 12 survives DTO normalization", failures)
 		_check(is_equal_approx(float(monster.get("stun_remaining", 0.0)), MeadowLakeMonster.STUN_DURATION), "Lake monster stun duration survives DTO normalization", failures)
+		_check(is_equal_approx(float(monster.get("state_elapsed", -1.0)), 0.0), "Lake monster state elapsed survives DTO normalization", failures)
+		_check(is_equal_approx(float(monster.get("spawn_grace_remaining", 0.0)), 0.4), "Lake monster spawn grace survives DTO normalization", failures)
+		_check(int(monster.get("attacks_done", 0)) == 1, "Lake monster attack count survives DTO normalization", failures)
+		_check(bool(monster.get("rush_should_stun", false)), "Lake monster rush stun flag survives DTO normalization", failures)
+		_check(is_equal_approx(float(monster.get("contact_damage_remaining", 0.0)), 0.25), "Lake monster contact cooldown survives DTO normalization", failures)
+		_check(not bool(monster.get("faces_left", true)), "Lake monster facing mirror survives DTO normalization", failures)
 
 static func _saxaul_state(dead: bool, id: String = "sunset_shore:saxaul_boss:1") -> Dictionary:
 	return {
@@ -238,6 +264,7 @@ static func _saxaul_state(dead: bool, id: String = "sunset_shore:saxaul_boss:1")
 		"ring_duration_remaining": 0.0,
 		"ring_pulse_remaining": 0.0,
 		"skill_windup": 0.0,
+		"spawn_grace_remaining": 0.4,
 		"skill_target_direction": [1.0, 0.0],
 		"small_vine_origins": [],
 	}
@@ -255,6 +282,7 @@ static func _orange_cactus_state() -> Dictionary:
 		"volley_timer": 0.5,
 		"facing": [1.0, 0.0],
 		"wander_direction": [0.0, 0.0],
+		"spawn_grace_remaining": 0.4,
 	}
 
 static func _empty_map_state(position: Array[float]) -> Dictionary:

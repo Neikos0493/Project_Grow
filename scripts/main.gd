@@ -33,6 +33,10 @@ const AUTOSAVE_INTERVAL := 5.0
 const AUTOSAVE_DEBOUNCE := 0.75
 const AUTOSAVE_RETRY_MAX_SECONDS := 15.0
 const DROP_PICKUP_DELAY_MSEC := 3000
+const SMALL_SEED := "bean_seed"
+const SUNGLASSES := "sunglasses"
+const BOSS_LAKE := &"lake_monster"
+const BOSS_SAXAUL := &"saxaul_boss"
 const AUTO_FIRE_CADENCE := {
 	"yellow_ball": 0.18,
 	"melee_weapon": 0.4,
@@ -65,6 +69,7 @@ const AUTO_FIRE_CADENCE := {
 @onready var death_overlay: ColorRect = $HUD/DeathOverlay
 @onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
 @onready var dialogue_box: MeadowDialogueBox = $HUD/DialogueBox
+@onready var completion_fill: ColorRect = $HUD/BossCompletion/Track/Fill
 
 var world: MeadowWorld
 var shop: MeadowShop
@@ -107,6 +112,9 @@ var _save_retry_remaining := 0.0
 var _save_failure_count := 0
 var _save_failure_notified := false
 var _closing := false
+var _show_radar_unlock_toast_on_close := false
+var _dialogue_choice_context := ""
+var _saxaul_failure_seed_returned := false
 
 @onready var game_state: Node = get_node("/root/GameState")
 
@@ -152,6 +160,7 @@ func _connect_shared_signals() -> void:
 	player.health_changed.connect(_on_health_changed)
 	player.died.connect(_on_player_died)
 	dialogue_box.closed.connect(_on_dialogue_closed)
+	dialogue_box.choice_selected.connect(_on_dialogue_choice_selected)
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
 	shop_panel.set_inventory(inventory)
@@ -178,15 +187,28 @@ func _configure_shared_ui() -> void:
 	inventory_sell_tooltip.hide()
 	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
 	respawn_progress.value = 0.0
+	_update_completion_hud()
 
 func _bind_active_map(map: MeadowWorld) -> void:
 	world = map
+	_dialogue_choice_context = ""
 	boss_bar.hide()
+	boss_fill.size.x = 620.0
 	world.set_language(language)
 	shop = world.get_shop_node()
 	plants = world.get_plants_container()
 	projectiles = world.get_projectiles_container()
 	shop_panel.set_map_variant("pond" if world.get_map_id() == &"sunset_shore" else "main")
+	var entering_map_two: bool = game_state.current_map_id != &"sunset_shore"
+	world.enable_pea_npc = world.get_map_id() == &"sunset_shore" and game_state.map_two_return_count >= 1
+	if world.get_map_id() == &"sunset_shore" \
+	and entering_map_two \
+	and game_state.sunflower_quest_state >= 2:
+		game_state.map_two_return_count = mini(2, game_state.map_two_return_count + 1)
+		world.enable_pea_npc = true
+		_mark_save_dirty()
+	world.set_pea_npc_phase(game_state.pea_npc_state)
+	world.pea_npc_transform_elapsed = 1.28 if game_state.pea_npc_state >= 1 else 0.0
 	if not world.state_changed.is_connected(_mark_save_dirty):
 		world.state_changed.connect(_mark_save_dirty)
 	var world_size := world.get_map_size_pixels()
@@ -250,7 +272,7 @@ func _apply_game_language() -> void:
 	if is_instance_valid(saxaul_boss) and saxaul_boss.mature and not saxaul_boss.dead:
 		boss_title.text = _msg("SAXAUL TREE", "梭梭树")
 	elif is_instance_valid(lake_monster) and not lake_monster.dead:
-		boss_title.text = _msg("LAKE MONSTER", "湖中怪物")
+		boss_title.text = _msg("WATER LILY", "湖中睡莲")
 
 	_apply_pause_language()
 
@@ -288,6 +310,8 @@ func _process(delta: float) -> void:
 	_update_auto_fire(delta)
 	_update_water_encounter(delta)
 	_update_saxaul_grass_spread(delta)
+	if is_instance_valid(world):
+		world.advance_pea_npc_transform(delta)
 	crosshair.queue_redraw()
 	_update_depth_order()
 	if not world.drops.is_empty():
@@ -462,9 +486,32 @@ func _get_shop_depth_zone() -> Rect2:
 	min_cell.y -= 1
 	return Rect2(Vector2(min_cell), Vector2(max_cell - min_cell + Vector2i.ONE))
 
+func _update_completion_hud() -> void:
+	if not is_instance_valid(completion_fill):
+		return
+	var ratio := float(game_state.get_defeated_boss_count()) / 2.0
+	completion_fill.size.x = 180.0 * clampf(ratio, 0.0, 1.0)
+
+func _has_active_hostiles() -> bool:
+	if not is_instance_valid(plants):
+		return false
+	for child in plants.get_children():
+		if child is MeadowLakeMonster and not child.dead and not child.is_queued_for_deletion():
+			return true
+		if child is MeadowSaxaulBoss and child.mature and not child.dead and not child.is_queued_for_deletion():
+			return true
+		if child is MeadowPursuingPlant and child.mature and not child.dead and not child.is_queued_for_deletion():
+			return true
+		if child is MeadowOrangeCactus and child.mature and not child.dead and not child.is_queued_for_deletion():
+			return true
+	return false
+
 func _on_interaction_requested() -> void:
 	if dialogue_box.is_open():
-		dialogue_box.advance()
+		if dialogue_box.is_choice_mode():
+			dialogue_box.select_choice(0)
+		else:
+			dialogue_box.advance()
 		return
 	if traveling or player.dead or melee_weapon.swinging:
 		return
@@ -494,6 +541,9 @@ func _on_interaction_requested() -> void:
 		"ranger":
 			_open_ranger_dialogue()
 			return
+		"pea_npc":
+			_open_pea_npc_dialogue()
+			return
 		"crate":
 			if not bool(target.get("used", false)) and not inventory.can_add(GREEN_SEED, 3):
 				_show_toast(_msg("Inventory is full.", "背包已满。"))
@@ -510,54 +560,32 @@ func _open_ranger_dialogue() -> void:
 	player.controls_locked = true
 	prompt_box.hide()
 	_clear_inventory_sell_tooltip()
-	var lines: Array[String] = []
-	var encounter_started := is_instance_valid(saxaul_boss) \
-		or not world.permanent_grass.is_empty()
-	var can_exchange := not inventory.has_item(SAXAUL_SEED) \
-		and not encounter_started
-	if can_exchange \
-	and inventory.try_exchange(CACTUS_DROP, SAXAUL_SEED, 1):
+	if game_state.sunflower_quest_state >= 2:
+		dialogue_box.open_dialogue("迷之向日葵", ["我记忆中的草原回来了！"], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+		return
+	if game_state.sunflower_quest_state == 0:
+		game_state.sunflower_quest_state = 1
 		_mark_save_dirty()
-		lines = [_msg(
-			"This cactus fruit carries the desert's strength. Take this saxaul seed.",
-			"这颗仙人掌果实蕴含着沙漠的力量。拿着这颗梭梭树种子。"
-		)]
-	elif can_exchange and inventory.has_item(CACTUS_DROP):
-		lines = [_msg(
-			"Make room in your pack for the saxaul seed.",
-			"请先为梭梭树种子腾出背包空间。"
-		)]
-	elif inventory.has_item(SAXAUL_SEED):
-		lines = [_msg(
-			"Plant the saxaul seed in the center of a clear three-by-three sand patch.",
-			"把梭梭树种子种在一片完整 3×3 沙地的中央。"
-		)]
-	elif is_instance_valid(saxaul_boss):
-		lines = [_msg(
-			"The saxaul has taken root. Stand ready.",
-			"梭梭树已经扎根，做好准备。"
-		)]
-	elif not world.permanent_grass.is_empty():
-		lines = [_msg(
-			"The restored grassland is the saxaul's lasting gift.",
-			"这片重生的草地是梭梭树留下的礼物。"
-		)]
-	else:
-		lines = [
-			_msg(
-				"Ranger: Keep to the grass paths and leave the tide pools clear.",
-				"护林员：请沿着草地小路行走，不要破坏潮池。"
-			),
-			_msg(
-				"Bring me a cactus fruit and I can trade it for a saxaul seed.",
-				"带一颗仙人掌果实给我，我可以用梭梭树种子和你交换。"
-			),
-		]
-	dialogue_box.open_dialogue(
-		_msg("Beach Ranger", "海滩护林员"),
-		lines,
-		_msg("E  Continue|E  Close", "E  继续|E  关闭")
-	)
+		dialogue_box.open_dialogue("迷之向日葵", [
+			"你看起来很不一般",
+			"这里从前是一望无际的大草原，可惜现在变成了大荒漠",
+			"你能给我找个墨镜来吗，这里的太阳太毒了",
+			"我会为你准备一个好东西作为回礼！",
+		], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+		return
+	var choice := "交付「墨镜」" if inventory.has_item(SUNGLASSES) else "交付「？？？」"
+	_dialogue_choice_context = "sunflower"
+	dialogue_box.open_choice_dialogue("迷之向日葵", "你来啦？", choice, _msg("E  Select", "E  选择"), "继续")
+
+func _open_pea_npc_dialogue() -> void:
+	if not world.enable_pea_npc:
+		return
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var choice := "交付「金色豌豆」" if game_state.pea_npc_state < 2 and inventory.has_item(MUTATED_PEA_DROP) else "交付「？？？」"
+	_dialogue_choice_context = "pea_npc"
+	dialogue_box.open_choice_dialogue("豌豆 吗？", "你好。", choice, _msg("E  Select", "E  选择"), "继续")
 
 func _open_world_tree_dialogue() -> void:
 	if world.get_map_id() != &"greenmeadow":
@@ -600,29 +628,82 @@ func _open_lake_dialogue() -> void:
 	player.controls_locked = true
 	prompt_box.hide()
 	_clear_inventory_sell_tooltip()
+	var speaker := "？？？"
+	if quest_state == QUEST_DEFEATED and game_state.has_defeated_boss(BOSS_LAKE):
+		if not game_state.world_tree_blessing_unlocked:
+			game_state.world_tree_blessing_unlocked = true
+			if &"sunset_shore" not in game_state.unlocked_map_ids:
+				game_state.unlocked_map_ids.append(&"sunset_shore")
+			_mark_save_dirty()
+			_show_radar_unlock_toast_on_close = true
+			dialogue_box.open_dialogue(speaker, ["救世主…我为你揭示旅途的下一站…"], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+			return
+		dialogue_box.open_dialogue(speaker, ["祝你好运…"], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+		return
+	if quest_state == QUEST_AWAITING_PLANT:
+		var choice := "交付「金色豌豆」" if inventory.has_item(MUTATED_PEA_DROP) else "交付「？？？」"
+		_dialogue_choice_context = "lake_keeper"
+		dialogue_box.open_choice_dialogue(
+			speaker,
+			"唯有至金之物能吸引湖中巨兽…",
+			choice,
+			_msg("E  Select", "E  选择"),
+			_msg("Continue", "继续")
+		)
+		return
 	var lines: Array[String] = []
-	var speaker := _msg("Lake Keeper", "湖之守望者")
 	match quest_state:
-		QUEST_AWAITING_PLANT:
-			if inventory.try_exchange(MUTATED_PEA_DROP, LILY_SEED, 1):
-				quest_state = QUEST_SEED_GRANTED
-				_mark_save_dirty()
-				lines = [_msg("Thank you. This water lily seed belongs in the pond.", "谢谢。这颗睡莲种子应该种进池塘。")]
-			elif inventory.has_item(MUTATED_PEA_DROP):
-				lines = [_msg("Make room in your pack for the water lily seed.", "请先为睡莲种子腾出背包空间。")]
-			else:
-				lines = [_msg("Bring me a mutated pea from the rare green plant.", "带一颗变异植物掉落的变异豌豆来。")]
 		QUEST_SEED_GRANTED:
-			lines = [_msg("Plant the water lily seed in the pond to awaken the lake.", "把睡莲种子种在池塘里，唤醒湖水。")]
+			lines = [_msg("Plant the blue seed in the pond to awaken the lake.", "把蓝色种子种进池塘，唤醒湖水。")]
 		QUEST_WATER_GROWING, QUEST_MONSTER_ACTIVE:
 			lines = [_msg("The lake is already awake. Be careful.", "湖水已经醒来。小心。")]
-		QUEST_DEFEATED:
-			lines = [_msg("The lake is quiet again. Keep the relic safe.", "湖水再次平静了。保管好那件遗物。")]
+		_:
+			lines = [_msg("The lake waits in silence.", "湖水正在寂静中等待。")]
 	dialogue_box.open_dialogue(speaker, lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
 
+func _on_dialogue_choice_selected(_index: int) -> void:
+	if not dialogue_box.is_open():
+		return
+	match _dialogue_choice_context:
+		"sunflower":
+			if inventory.try_exchange(SUNGLASSES, SAXAUL_SEED, 1):
+				game_state.sunflower_quest_state = 2
+				_dialogue_choice_context = ""
+				_mark_save_dirty()
+				dialogue_box.close_dialogue()
+				player.controls_locked = true
+				dialogue_box.open_dialogue("迷之向日葵", ["这是梭梭树树种，送你啦，种下去发生什么可跟我没关系！"], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+			return
+		"pea_npc":
+			if not world.enable_pea_npc or game_state.pea_npc_state >= 2:
+				return
+			if inventory.remove_item(MUTATED_PEA_DROP, 1):
+				game_state.pea_npc_state = 1
+				world.set_pea_npc_phase(1)
+				world.pea_npc_transform_elapsed = 0.0
+				world.queue_redraw()
+				_dialogue_choice_context = ""
+				_mark_save_dirty()
+				dialogue_box.close_dialogue()
+				player.controls_locked = true
+				dialogue_box.open_dialogue("豌豆 吗？", ["……"], _msg("E  Continue|E  Close", "E  继续|E 关闭"))
+			return
+		"lake_keeper":
+			if quest_state == QUEST_AWAITING_PLANT and inventory.try_exchange(MUTATED_PEA_DROP, LILY_SEED, 1):
+				_dialogue_choice_context = ""
+				quest_state = QUEST_SEED_GRANTED
+				_mark_save_dirty()
+			return
+	_dialogue_choice_context = ""
+
 func _on_dialogue_closed() -> void:
+	_dialogue_choice_context = ""
 	player.controls_locked = player.dead or traveling
 	_last_prompt = ""
+	if _show_radar_unlock_toast_on_close:
+		_show_radar_unlock_toast_on_close = false
+		_show_toast("雷达上出现了新的地点")
+		radar_panel.set_navigation_state(world.get_map_id(), game_state.unlocked_map_ids)
 
 func _open_radar() -> void:
 	radar_open = true
@@ -643,7 +724,7 @@ func _close_radar() -> void:
 func _on_radar_point_selected(map_id: StringName) -> void:
 	if map_id == &"world_tree":
 		_close_radar()
-		_show_toast(_msg("World Tree signal locked. Keep exploring the meadow.", "世界树信号已锁定，继续探索草甸吧。"))
+		_show_toast(_msg("This destination has not been revealed yet.", "这个地点还未在雷达上显现。"))
 		return
 	if map_id == world.get_map_id():
 		_close_radar()
@@ -651,8 +732,8 @@ func _on_radar_point_selected(map_id: StringName) -> void:
 		return
 	if map_id not in game_state.unlocked_map_ids:
 		_show_toast(_msg(
-			"Defeat this planet's boss, then give its relic to the World Tree.",
-			"请先击败本层 Boss，再把掉落的任务遗物交给世界树。"
+			"This destination has not been revealed yet.",
+			"这个地点还未在雷达上显现。"
 		))
 		return
 	await _travel_to(map_id)
@@ -665,6 +746,8 @@ func _travel_to(map_id: StringName) -> void:
 	_close_shop()
 	traveling = true
 	player.controls_locked = true
+	player.visible = false
+	player.set_collision_layer_value(2, false)
 	melee_weapon.cancel_swing()
 	map_host.set_runtime_suspended(true)
 	if not _capture_and_save():
@@ -731,6 +814,8 @@ func _travel_to(map_id: StringName) -> void:
 	if disembark.is_valid() and disembark.is_running():
 		await disembark.finished
 	map_host.set_runtime_suspended(false)
+	player.visible = true
+	player.set_collision_layer_value(2, true)
 	traveling = false
 	player.controls_locked = player.dead
 	_show_toast(world.get_arrival_message())
@@ -748,6 +833,11 @@ func _capture_game_state_memory() -> Dictionary:
 		"map_states": game_state.map_states.duplicate(true),
 		"entry_mode": game_state.entry_mode,
 		"world_tree_blessing_unlocked": game_state.world_tree_blessing_unlocked,
+		"defeated_boss_ids": game_state.defeated_boss_ids.duplicate(),
+		"container_energy": game_state.container_energy,
+		"sunflower_quest_state": game_state.sunflower_quest_state,
+		"map_two_return_count": game_state.map_two_return_count,
+		"pea_npc_state": game_state.pea_npc_state,
 	}
 
 func _restore_game_state_memory(state: Dictionary) -> void:
@@ -763,9 +853,21 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 	game_state.map_states = state.get("map_states", {}).duplicate(true)
 	game_state.entry_mode = str(state.get("entry_mode", game_state.entry_mode))
 	game_state.world_tree_blessing_unlocked = bool(state.get("world_tree_blessing_unlocked", game_state.world_tree_blessing_unlocked))
+	game_state.defeated_boss_ids.clear()
+	for value in state.get("defeated_boss_ids", []):
+		var boss_id := StringName(str(value))
+		if boss_id in [&"lake_monster", &"saxaul_boss"] and boss_id not in game_state.defeated_boss_ids:
+			game_state.defeated_boss_ids.append(boss_id)
+	game_state.container_energy = clampi(int(state.get("container_energy", game_state.container_energy)), 0, 100)
+	game_state.sunflower_quest_state = clampi(int(state.get("sunflower_quest_state", game_state.sunflower_quest_state)), 0, 2)
+	game_state.map_two_return_count = clampi(int(state.get("map_two_return_count", game_state.map_two_return_count)), 0, 2)
+	game_state.pea_npc_state = clampi(int(state.get("pea_npc_state", game_state.pea_npc_state)), 0, 2)
+	_update_completion_hud()
 
 func _rollback_travel(old_map_id: StringName, old_snapshot: Dictionary, old_game_state: Dictionary, message: String) -> void:
 	_restore_game_state_memory(old_game_state)
+	player.visible = false
+	player.set_collision_layer_value(2, false)
 	var restored_map := map_host.activate_map(old_map_id)
 	if restored_map == null:
 		push_error("Could not restore map after failed travel: %s" % old_map_id)
@@ -784,6 +886,8 @@ func _rollback_travel(old_map_id: StringName, old_snapshot: Dictionary, old_game
 	# until the visual rollback has finished.
 	await travel_transition.reveal()
 	map_host.set_runtime_suspended(false)
+	player.visible = true
+	player.set_collision_layer_value(2, true)
 	traveling = false
 	player.controls_locked = player.dead
 	_show_toast(_msg(message, "旅行失败，已返回原地图。"))
@@ -912,6 +1016,17 @@ func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: 
 	if traveling or shop_open or radar_open or dialogue_box.is_open() or player.dead or player.controls_locked:
 		return
 	var item_id := requested_item_id if not requested_item_id.is_empty() else inventory.get_selected_item_id()
+	if item_id == PEA_DROP:
+		if inventory.get_selected_item_id() != PEA_DROP:
+			return
+		if not inventory.consume_selected():
+			return
+		if not player.heal(1):
+			inventory.try_add(PEA_DROP, 1)
+			return
+		MeadowDamageNumber.spawn_heal(self, player.global_position + Vector2(0, -34), 1)
+		_mark_save_dirty()
+		return
 	var pointer_map_position := world.to_local(get_global_mouse_position())
 	var player_map_position := world.to_local(player.global_position)
 	var player_map_facing := _player_facing_in_map()
@@ -919,7 +1034,7 @@ func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: 
 		HOE:
 			var hoe_cell := world.get_pointer_cell(pointer_map_position, player_map_position, player_map_facing, HOE)
 			_show_toast(_msg("Tilled the ground.", "土地已翻耕。") if world.till(hoe_cell) else _msg("The hoe needs a nearby grass tile in front of you.", "锄头需要对准前方附近的草地。"))
-		GREEN_SEED:
+		GREEN_SEED, SMALL_SEED:
 			var seed_cell := world.get_pointer_cell(pointer_map_position, player_map_position, player_map_facing, GREEN_SEED)
 			if seed_cell.x < 0 or inventory.get_selected_count() <= 0:
 				_show_toast(_msg("Seeds need an adjacent tilled tile in front of you.", "种子需要种在前方相邻的翻耕土地上。"))
@@ -1019,6 +1134,9 @@ func _plant_lake_seed(
 	seed_item_id: String
 ) -> bool:
 	var is_legacy_seed := seed_item_id == BLUE_SEED
+	if quest_state != QUEST_SEED_GRANTED or game_state.has_defeated_boss(BOSS_LAKE):
+		_show_toast(_msg("The water lily seed is not available right now.", "现在无法种下睡莲种子。"))
+		return false
 	if not world.supports_lake_encounter():
 		_show_toast(_msg(
 			"This water cannot receive the seed.",
@@ -1198,6 +1316,7 @@ func _create_saxaul_boss(
 	or not _can_add_persisted_plant():
 		return null
 	var tree := MeadowSaxaulBoss.new()
+	_saxaul_failure_seed_returned = false
 	plants.add_child(tree)
 	tree.global_position = world.to_global(world.cell_to_world(cell))
 	tree.entity_id = str(restored_state.get("entity_id", ""))
@@ -1274,14 +1393,14 @@ func _on_plant_died(
 		world.to_local(global_position),
 		drop_item_id,
 		1,
-		DROP_PICKUP_DELAY_MSEC
+		0
 	)
 	_mark_save_dirty()
 	var item_name := inventory.get_item_name(drop_item_id)
 	if dropped:
 		_show_toast(_msg(
-			"The plant dropped %s. It can be picked up in 3 seconds." % item_name,
-			"植物掉落了%s，3 秒后可以拾取。" % item_name
+			"The plant dropped %s. It can be picked up now." % item_name,
+			"植物掉落了%s，现在可以拾取。" % item_name
 		))
 	else:
 		_show_toast(_msg(
@@ -1348,16 +1467,20 @@ func _on_saxaul_vine_volley(
 			)
 
 func _on_saxaul_health_changed(current: int, maximum: int) -> void:
-	boss_fill.size.x = 620.0 * clampf(
-		float(current) / float(maximum),
-		0.0,
-		1.0
-	)
+	_set_boss_health(current, maximum)
 	if is_instance_valid(saxaul_boss):
 		_mark_save_dirty()
 
-func _on_saxaul_died(cell: Vector2i, _global_position: Vector2) -> void:
+func _on_saxaul_died(cell: Vector2i, global_position: Vector2) -> void:
 	boss_bar.hide()
+	if game_state.has_defeated_boss(BOSS_SAXAUL):
+		if not is_instance_valid(saxaul_boss) or saxaul_boss.dead:
+			_prepare_saxaul_spread(cell)
+		return
+	game_state.record_boss_defeat(BOSS_SAXAUL)
+	_update_completion_hud()
+	_play_boss_death_feedback(global_position)
+	_mark_save_dirty()
 	if not is_instance_valid(saxaul_boss) or saxaul_boss.dead:
 		_prepare_saxaul_spread(cell)
 		_mark_save_dirty()
@@ -1440,7 +1563,8 @@ func _update_water_encounter(delta: float) -> void:
 		_spawn_lake_monster()
 
 func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
-	if is_instance_valid(lake_monster) or not world.supports_lake_encounter():
+	if game_state.has_defeated_boss(BOSS_LAKE) \
+	or is_instance_valid(lake_monster) or not world.supports_lake_encounter():
 		return
 	quest_state = QUEST_MONSTER_ACTIVE
 	var monster := MeadowLakeMonster.new()
@@ -1455,42 +1579,72 @@ func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
 	if not restored_state.is_empty():
 		monster.restore_state(restored_state)
 	lake_monster = monster
-	boss_title.text = _msg("WATER LILY", "睡莲")
+	boss_title.text = _msg("WATER LILY", "湖中睡莲")
 	_on_lake_monster_health_changed(monster.health, monster.MAX_HEALTH)
 	boss_bar.show()
 	_mark_save_dirty()
 	if restored_state.is_empty():
-		_show_toast(_msg("The lake monster has awakened!", "湖中怪物苏醒了！"))
+		_show_toast(_msg("The water lily has awakened!", "湖中睡莲苏醒了！"))
 
 func _on_lake_monster_stunned() -> void:
 	_mark_save_dirty()
-	_show_toast(_msg("The water lily is stunned for 4 seconds.", "睡莲眩晕 4 秒。"))
+	_show_toast(_msg("The water lily is stunned for 4 seconds.", "湖中睡莲眩晕 4 秒。"))
 
 func _on_lake_monster_seed_volley(origin: Vector2, directions: Array[Vector2]) -> void:
-	if player.dead:
+	if player.dead or not is_instance_valid(lake_monster) or lake_monster.dead:
 		return
 	for direction in directions:
-		_spawn_projectile(origin + direction * 36.0, direction, WORLD_MASK | PLAYER_MASK, 1, lake_monster, Color("#f0d987"), 230.0)
+		_spawn_projectile(origin + direction * 36.0, direction, WORLD_MASK | PLAYER_MASK, 1, lake_monster, Color("#a85de8"), 230.0)
+
+func _set_boss_health(current: int, maximum: int) -> void:
+	var ratio := 0.0 if maximum <= 0 else clampf(float(current) / float(maximum), 0.0, 1.0)
+	boss_fill.size.x = 620.0 * ratio
 
 func _on_lake_monster_health_changed(current: int, maximum: int) -> void:
-	var ratio := clampf(float(current) / float(maximum), 0.0, 1.0)
-	boss_fill.size.x = 620.0 * ratio
+	_set_boss_health(current, maximum)
 	if is_instance_valid(lake_monster):
 		_mark_save_dirty()
 
+func _play_boss_death_feedback(global_position: Vector2) -> void:
+	if not is_inside_tree():
+		return
+	if is_instance_valid(camera):
+		var original_offset := camera.offset
+		var shake := create_tween()
+		shake.tween_property(camera, "offset", original_offset + Vector2(6, -4), 0.06)
+		shake.tween_property(camera, "offset", original_offset + Vector2(-5, 4), 0.06)
+		shake.tween_property(camera, "offset", original_offset, 0.1)
+	for index in range(20):
+		var dot := Polygon2D.new()
+		dot.polygon = PackedVector2Array([Vector2(-3, -3), Vector2(3, -3), Vector2(3, 3), Vector2(-3, 3)])
+		dot.color = Color("#69e58a")
+		dot.global_position = global_position + Vector2.from_angle(TAU * index / 20.0) * randf_range(8.0, 64.0)
+		add_child(dot)
+		var target := player.global_position
+		var tween := create_tween()
+		tween.tween_interval(1.0)
+		tween.tween_property(dot, "global_position", target, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_callback(dot.queue_free)
+
 func _on_lake_monster_died(global_position: Vector2) -> void:
 	boss_bar.hide()
-	if quest_state != QUEST_MONSTER_ACTIVE:
-		return
+	if is_instance_valid(lake_monster):
+		lake_monster.set_meta("death_handled", true)
 	lake_monster = null
+	if quest_state != QUEST_MONSTER_ACTIVE or game_state.has_defeated_boss(BOSS_LAKE):
+		return
 	var reward_result := _grant_quest_relic(world.to_local(global_position))
 	if reward_result.is_empty():
 		_show_toast(_msg("The quest relic could not be secured.", "无法安全保存任务遗物。"))
 		return
+	if not game_state.record_boss_defeat(BOSS_LAKE):
+		return
 	world.clear_water_growth(water_root)
 	water_root = Vector2i(-1, -1)
 	quest_state = QUEST_DEFEATED
+	_update_completion_hud()
 	_mark_save_dirty()
+	_play_boss_death_feedback(global_position)
 	match reward_result:
 		"existing":
 			_show_toast(_msg("The quest relic is already safe.", "任务遗物已经安全保存。"))
@@ -1524,7 +1678,36 @@ func _reset_lake_encounter_on_player_death() -> void:
 		return
 	_clear_active_lake_encounter()
 	quest_state = QUEST_AWAITING_PLANT
+	_return_failed_boss_seed(LILY_SEED)
 	_mark_save_dirty()
+
+func _reset_saxaul_encounter_on_player_death() -> void:
+	if _saxaul_failure_seed_returned \
+	or not world.supports_saxaul_encounter() \
+	or not is_instance_valid(saxaul_boss) \
+	or saxaul_boss.dead \
+	or game_state.has_defeated_boss(BOSS_SAXAUL):
+		return
+	_saxaul_failure_seed_returned = true
+	var position := world.to_local(player.global_position)
+	saxaul_boss.queue_free()
+	saxaul_boss = null
+	boss_bar.hide()
+	saxaul_spread_active = false
+	saxaul_spread_rings.clear()
+	_return_failed_boss_seed(SAXAUL_SEED, position)
+	_mark_save_dirty()
+
+func _return_failed_boss_seed(item_id: String, map_position: Vector2 = Vector2.INF) -> void:
+	if inventory.has_item(item_id):
+		return
+	for drop in world.drops:
+		if str(drop.get("item_id", "")) == item_id:
+			return
+	if inventory.try_add(item_id, 1):
+		return
+	var drop_position := world.to_local(player.global_position) if map_position == Vector2.INF else map_position
+	world.add_drop(world.get_nearest_walkable_position(drop_position), item_id, 1, 0)
 
 func _clear_active_lake_encounter() -> void:
 	if is_instance_valid(lake_monster):
@@ -1549,6 +1732,7 @@ func _on_health_changed(current: int, maximum: int) -> void:
 func _on_player_died() -> void:
 	melee_weapon.cancel_swing()
 	_reset_lake_encounter_on_player_death()
+	_reset_saxaul_encounter_on_player_death()
 	_respawn_triggered_for_death = false
 	_reset_respawn_hold()
 	_close_shop()
@@ -1679,6 +1863,7 @@ func _capture_encounter_state() -> Dictionary:
 
 func _clear_runtime_entities() -> void:
 	boss_bar.hide()
+	boss_fill.size.x = 620.0
 	saxaul_spread_active = false
 	saxaul_spread_rings.clear()
 	saxaul_spread_index = 0
@@ -1719,6 +1904,7 @@ func _restore_map_state(snapshot: Dictionary) -> void:
 			"orange_cactus":
 				_create_orange_cactus(cell, entry)
 			"saxaul_boss":
+				_saxaul_failure_seed_returned = false
 				_create_saxaul_boss(cell, entry)
 	if world.supports_lake_encounter():
 		_restore_encounter_state(snapshot.get("encounter", {}))

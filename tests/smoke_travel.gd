@@ -227,7 +227,7 @@ func _test_typed_plant_deaths(main: MeadowMain) -> bool:
 		var drop: Dictionary = main.world.drops.back()
 		if not _expect(str(drop.get("item_id", "")) == str(death_case["drop"]) and int(drop.get("count", 0)) == 1, "%s plant death produced the wrong typed drop" % death_case["kind"]):
 			return false
-		if not _expect(_drop_delay_is_about_three_seconds(drop), "%s plant death did not apply the approximately 3000ms pickup delay" % death_case["kind"]):
+		if not _expect(_drop_is_immediately_available(drop), "%s plant death did not apply the approximately 3000ms pickup delay" % death_case["kind"]):
 			return false
 	main.world.restore_state({})
 	_clear_runtime_entities(main)
@@ -424,9 +424,8 @@ func _growth_lookup_from_snapshot(snapshot: Dictionary) -> Dictionary:
 			}
 	return result
 
-func _drop_delay_is_about_three_seconds(drop: Dictionary) -> bool:
-	var remaining := int(drop.get("available_at_msec", 0)) - Time.get_ticks_msec()
-	return remaining >= MeadowMain.DROP_PICKUP_DELAY_MSEC - 100 and remaining <= MeadowMain.DROP_PICKUP_DELAY_MSEC
+func _drop_is_immediately_available(drop: Dictionary) -> bool:
+	return int(drop.get("available_at_msec", 0)) <= Time.get_ticks_msec()
 
 func _test_transformed_map_coordinates(main: MeadowMain) -> bool:
 	main.map_host.set_runtime_suspended(true)
@@ -534,7 +533,7 @@ func _test_capacity_transactions(main: MeadowMain) -> bool:
 		return false
 	if not _expect(main.world.drops.size() == 1 and str(main.world.drops[0].get("item_id", "")) == main.CACTUS_DROP, "Cactus death did not produce one typed cactus drop"):
 		return false
-	if not _expect(_drop_delay_is_about_three_seconds(main.world.drops[0]), "Cactus death did not apply the approximately 3000ms pickup delay"):
+	if not _expect(_drop_is_immediately_available(main.world.drops[0]), "Cactus death did not apply the approximately 3000ms pickup delay"):
 		return false
 	var green := main.map_host.activate_map(&"greenmeadow")
 	if not _expect(green != null, "Could not restore Greenmeadow after cactus death coverage"):

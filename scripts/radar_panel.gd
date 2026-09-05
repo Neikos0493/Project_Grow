@@ -56,7 +56,7 @@ func _apply_labels() -> void:
 	var chinese := language == "zh"
 	title_label.text = "导航雷达" if chinese else "NAVIGATION RADAR"
 	meadow_point.tooltip_text = "绿野" if chinese else "Greenmeadow"
-	pond_point.tooltip_text = "日落海岸" if chinese else "Sunset Shore"
+	pond_point.tooltip_text = "风蚀沙壑" if chinese else "Wind-Scarred Gorge"
 	tree_point.tooltip_text = "世界树" if chinese else "World Tree"
 
 func _apply_point_state() -> void:
@@ -65,9 +65,10 @@ func _apply_point_state() -> void:
 	_set_point_state(tree_point, WORLD_TREE_ID)
 
 func _set_point_state(point: Button, map_id: StringName) -> void:
-	var unlocked := map_id == WORLD_TREE_ID or map_id in unlocked_map_ids
-	point.disabled = not unlocked
-	point.modulate = Color(1.0, 1.0, 1.0, 0.55 if not unlocked else 1.0)
+	var visible_point := map_id == current_map_id or map_id in unlocked_map_ids
+	point.visible = visible_point
+	point.disabled = not visible_point
+	point.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	if map_id == current_map_id:
 		point.modulate = Color("#fff1bd")
 
@@ -133,6 +134,9 @@ func _draw() -> void:
 	draw_circle(center, 6.0, Color("#f3c969"))
 	draw_circle(center, 2.0, Color("#26353b"))
 	for index in range(ORBIT_RADII.size()):
+		var map_id: StringName = [GREENMEADOW_ID, SUNSET_SHORE_ID, WORLD_TREE_ID][index]
+		if not (map_id == current_map_id or map_id in unlocked_map_ids):
+			continue
 		var marker_color: Color = POINT_COLORS[index]
 		marker_color.a = 0.18
 		draw_circle(_get_point_position(index), float(POINT_SIZES[index]) * 0.8, marker_color)

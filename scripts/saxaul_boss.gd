@@ -10,7 +10,8 @@ signal died(cell: Vector2i, global_position: Vector2)
 
 const GROW_TIME := 4.0
 const MAX_HEALTH := 24
-const ATTACK_RANGE := 360.0
+const SPAWN_GRACE_DURATION := 1.0
+const ATTACK_RANGE := 420.0
 const RING_COUNT := 12
 const RING_COOLDOWN := 1.25
 const RING_DURATION := 0.9
@@ -34,6 +35,7 @@ var ring_pulse_remaining := 0.0
 var skill_windup := 0.0
 var skill_target_direction := Vector2.RIGHT
 var small_vine_origins: Array[Vector2] = []
+var spawn_grace_remaining := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map: MeadowWorld) -> void:
 	cell = plant_cell
@@ -54,15 +56,24 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
-	age += delta
 	if not mature:
+		age += delta
 		if age >= GROW_TIME:
 			mature = true
+			spawn_grace_remaining = SPAWN_GRACE_DURATION
+			ring_duration_remaining = 0.0
+			skill_windup = 0.0
 			matured.emit(cell)
 			queue_redraw()
 		return
+	if spawn_grace_remaining > 0.0:
+		spawn_grace_remaining = maxf(0.0, spawn_grace_remaining - delta)
+		ring_duration_remaining = 0.0
+		skill_windup = 0.0
+		return
 	if not is_instance_valid(target) or target.dead:
 		return
+	age = GROW_TIME
 	if ring_duration_remaining > 0.0:
 		ring_duration_remaining = maxf(0.0, ring_duration_remaining - delta)
 		ring_pulse_remaining -= delta
@@ -135,7 +146,7 @@ func get_damage_number_position() -> Vector2:
 	return global_position + Vector2(0, -76)
 
 func take_damage(amount: int = 1) -> bool:
-	if dead or not mature or amount <= 0:
+	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
 	health_changed.emit(health, MAX_HEALTH)
@@ -168,6 +179,7 @@ func capture_state() -> Dictionary:
 		"ring_duration_remaining": ring_duration_remaining,
 		"ring_pulse_remaining": ring_pulse_remaining,
 		"skill_windup": skill_windup,
+		"spawn_grace_remaining": clampf(spawn_grace_remaining, 0.0, SPAWN_GRACE_DURATION),
 		"skill_target_direction": _position_to_data(map_direction),
 		"small_vine_origins": origin_data,
 	}
@@ -197,6 +209,7 @@ func restore_state(state: Dictionary) -> void:
 		RING_PULSE_INTERVAL
 	)
 	skill_windup = clampf(float(state.get("skill_windup", 0.0)), 0.0, SKILL_WINDUP)
+	spawn_grace_remaining = clampf(float(state.get("spawn_grace_remaining", 0.0)), 0.0, SPAWN_GRACE_DURATION)
 	var map_direction := _data_to_position(
 		state.get("skill_target_direction", []),
 		Vector2.RIGHT

@@ -17,6 +17,9 @@ const WORLD_COLLISION_LAYER := 1
 const WATER_COLLISION_LAYER := 8
 const MAX_DROPS := 256
 const MAX_PERSISTED_PLANTS := 256
+const PEA_WAIT_TEXTURE := preload("res://image/Monster_pea/ball-wait-Sheet.png")
+const SUNFLOWER_TEXTURE := preload("res://image/NPC/Sprite-0005-Sheet.png")
+const WORM_WAIT_TEXTURE := preload("res://image/worm/worm-wait-Sheet.png")
 
 const GRASS := 0
 const DIRT := 1
@@ -49,6 +52,10 @@ var ship_flame_length := 12.0
 var water_anchor_min := Vector2i(-1, -1)
 var water_anchor_max := Vector2i(-1, -1)
 var _is_restoring := false
+var enable_pea_npc := false
+var pea_npc_phase := 0
+var pea_npc_transform_elapsed := 0.0
+const WORM_TEXTURE := preload("res://image/worm/worm-Sheet.png")
 
 func _ready() -> void:
 	_build_map()
@@ -56,6 +63,19 @@ func _ready() -> void:
 	_create_collisions()
 	_after_map_ready()
 	queue_redraw()
+
+func _process(_delta: float) -> void:
+	if _has_animated_props():
+		queue_redraw()
+
+func _has_animated_props() -> bool:
+	for prop in props:
+		var kind := str(prop.get("kind", ""))
+		if kind == "ranger":
+			return true
+		if kind == "pea_npc" and enable_pea_npc:
+			return true
+	return false
 
 func _build_map() -> void:
 	_initialize_grid(GRASS)
@@ -135,6 +155,16 @@ func set_ship_transition_offset(value: Vector2) -> void:
 
 func set_ship_flame_length(value: float) -> void:
 	ship_flame_length = value
+	queue_redraw()
+
+func set_pea_npc_phase(value: int) -> void:
+	pea_npc_phase = clampi(value, 0, 1)
+	queue_redraw()
+
+func advance_pea_npc_transform(delta: float) -> void:
+	if pea_npc_phase != 1:
+		return
+	pea_npc_transform_elapsed = minf(1.28, pea_npc_transform_elapsed + delta)
 	queue_redraw()
 
 func get_camera_top_limit() -> int:
@@ -500,6 +530,8 @@ func _find_target(origin: Vector2, facing: Vector2) -> Dictionary:
 		var nearest: Dictionary = {}
 		var nearest_distance := INF
 		for prop in props:
+			if str(prop.get("kind", "")) == "pea_npc" and not enable_pea_npc:
+				continue
 			if not kind.is_empty() and str(prop.get("kind", "")) != kind:
 				continue
 			if kind.is_empty() and str(prop.get("kind", "")) == "shop":
@@ -746,6 +778,8 @@ func _draw() -> void:
 				draw_line(Vector2(wave_x - 3, rect.position.y + 22), Vector2(wave_x + 5, rect.position.y + 22), Color(0.72, 0.91, 0.9, 0.2), 1.0)
 	_draw_scenery_after_tiles()
 	for prop in props:
+		if prop.get("kind", "") == "pea_npc" and not enable_pea_npc:
+			continue
 		if prop.get("kind", "") != "shop":
 			_draw_prop(prop)
 	for cell in farm_tiles:
@@ -808,6 +842,8 @@ func _draw_water_growth_cell(cell: Vector2i, growth: Dictionary) -> void:
 		draw_circle(center + Vector2(-5, -12), 3.0, Color("#b0f1d1"))
 
 func _draw_prop(prop: Dictionary) -> void:
+	if str(prop.get("kind", "")) == "pea_npc" and not enable_pea_npc:
+		return
 	var center: Vector2 = cell_to_world(prop["cell"])
 	var outline := Color("#26353b")
 	match str(prop.get("kind", "")):
@@ -839,11 +875,22 @@ func _draw_prop(prop: Dictionary) -> void:
 			draw_line(center + Vector2(6, 3), center + Vector2(13, 13), Color("#8b633f"), 2.0)
 			draw_circle(center + Vector2(15, 14), 3.0, Color("#6fcfe1"))
 		"ranger":
-			_draw_flat_ellipse(center + Vector2(0, 10), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
-			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
-			draw_rect(Rect2(center + Vector2(-13, -13), Vector2(26, 7)), Color("#b56b3b"), true)
-			draw_rect(Rect2(center + Vector2(-10, -18), Vector2(20, 7)), Color("#b56b3b"), true)
-			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#3e7650"), 8.0)
+			var frame := int(Time.get_ticks_msec() / 180) % 4
+			var source := Rect2(frame * 64, 0, 64, 64)
+			draw_texture_rect_region(SUNFLOWER_TEXTURE, Rect2(center - Vector2(32, 48), Vector2(64, 64)), source)
+		"pea_npc":
+			if pea_npc_phase == 1 and pea_npc_transform_elapsed < 1.28:
+				var worm_frame := mini(15, int(pea_npc_transform_elapsed / 0.08))
+				var worm_source := Rect2(worm_frame * 32, 0, 32, 32)
+				draw_texture_rect_region(WORM_TEXTURE, Rect2(center - Vector2(32, 16), Vector2(64, 32)), worm_source)
+			elif pea_npc_phase == 1:
+				var wait_frame := int(Time.get_ticks_msec() / 420) % 4
+				var wait_source := Rect2(wait_frame * 32, 0, 32, 32)
+				draw_texture_rect_region(WORM_WAIT_TEXTURE, Rect2(center - Vector2(32, 16), Vector2(64, 32)), wait_source)
+			else:
+				var pea_frame := int(Time.get_ticks_msec() / 420) % 2
+				var pea_source := Rect2(pea_frame * 67, 0, 67, 49)
+				draw_texture_rect_region(PEA_WAIT_TEXTURE, Rect2(center - Vector2(34, 25), Vector2(67, 49)), pea_source)
 		"lookout":
 			draw_line(center + Vector2(0, 10), center + Vector2(0, -14), Color("#5a4938"), 3.0)
 			draw_colored_polygon(PackedVector2Array([center + Vector2(0, -14), center + Vector2(18, -9), center + Vector2(0, -4)]), Color("#d5b15f"))
@@ -874,15 +921,18 @@ func _draw_drop(drop: Dictionary) -> void:
 		draw_circle(position + Vector2(-4, -5), 4.0, Color(Color("#59b35b"), alpha))
 		draw_circle(position + Vector2(4, -4), 4.0, Color(Color("#72c45f"), alpha))
 	else:
-		var base_color := Color("#f3c969")
-		match item_id:
-			"pea_drop":
-				base_color = Color("#59b35b")
-			"mutated_pea_drop":
-				base_color = Color("#f3c969")
-			"cactus_drop":
-				base_color = Color("#e77a32")
-		draw_circle(position, 6.0, base_color if available else Color(base_color, 0.35))
+		if item_id == "pea_drop":
+			var pea_texture := preload("res://image/Monster_pea/Bean.png")
+			var pea_tint := Color(1.0, 1.0, 1.0, 1.0 if available else 0.35)
+			draw_texture_rect(pea_texture, Rect2(position - Vector2(12, 12), Vector2(24, 24)), false, pea_tint)
+		else:
+			var base_color := Color("#f3c969")
+			match item_id:
+				"mutated_pea_drop":
+					base_color = Color("#f3c969")
+				"cactus_drop":
+					base_color = Color("#e77a32")
+			draw_circle(position, 6.0, base_color if available else Color(base_color, 0.35))
 	if not available:
 		draw_arc(position, 10.0, 0.0, TAU, 24, Color(0.95, 0.78, 0.4, 0.45), 1.0)
 

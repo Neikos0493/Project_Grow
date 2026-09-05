@@ -13,6 +13,7 @@ const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
 const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
+const BEAN_SEED_TEXTURE := preload("res://image/shop/beanSeed.png")
 
 @onready var product_hitboxes: Control = $ProductHitboxes
 @onready var scroll_bar: HScrollBar = $ProductScrollBar
@@ -56,9 +57,11 @@ func is_shop_product(item_id: String) -> bool:
 	return item_id in _visible_product_ids()
 
 func _visible_product_ids() -> Array[String]:
-	var ids: Array[String] = ["hoe", "green_seed", "yellow_ball", "melee_weapon"]
+	var ids: Array[String] = ["hoe", "bean_seed", "green_seed", "melee_weapon"]
 	if beach_shop:
+		ids.append("yellow_ball")
 		ids.append("orange_seed")
+		ids.append("sunglasses")
 	return ids
 
 func _rebuild_product_hitboxes() -> void:
@@ -136,6 +139,13 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_circle(center, 22.0, Color("#26353b"))
 		draw_circle(center, 19.0, Color("#f3c969"))
 		draw_circle(center + Vector2(-6, -7), 5.0, Color(1.0, 0.96, 0.72, 0.85))
+	elif icon == "bean_seed":
+		var bean_icon_size := Vector2(30.0, 30.0)
+		draw_texture_rect(BEAN_SEED_TEXTURE, Rect2(center - bean_icon_size * 0.5, bean_icon_size), false)
+	elif icon == "sunglasses":
+		draw_line(center + Vector2(-18, -2), center + Vector2(-4, -2), Color("#273746"), 5.0)
+		draw_line(center + Vector2(4, -2), center + Vector2(18, -2), Color("#273746"), 5.0)
+		draw_line(center + Vector2(-4, -2), center + Vector2(4, -2), Color("#273746"), 4.0)
 	elif icon == "green_seed":
 		draw_circle(center + Vector2(0, 2), 15.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 13.0, Color("#59b35b"))
