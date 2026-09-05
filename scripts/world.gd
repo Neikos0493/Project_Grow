@@ -181,11 +181,6 @@ func _generate_map() -> void:
 			assert(is_walkable(prop_cell))
 
 func _apply_pond_layout() -> void:
-	# The lake keeper's meadow position becomes ocean in this variant.
-	for prop in props:
-		if str(prop.get("kind", "")) == "lake_npc":
-			prop["cell"] = Vector2i(24, 6)
-			break
 	# The second map is a wide shore: sand, ocean, boardwalks, and small grass dunes.
 	for y in range(1, MAP_SIZE.y - 1):
 		for x in range(1, MAP_SIZE.x - 1):

@@ -346,20 +346,8 @@ func _open_ranger_dialogue() -> void:
 	player.controls_locked = true
 	prompt_box.hide()
 	_clear_inventory_sell_tooltip()
-	var lines: Array[String] = [
-		_msg("Ranger: Keep to the grass paths and leave the tide pools clear.", "护林员：请沿着草地小路行走，不要破坏潮池。"),
-		_msg("The beach is safe today, but the dunes shift after sunset.", "今天的海滩很安全，但日落后沙丘会移动。"),
-		_msg("If you find orange seeds, plant them in the warm sand.", "如果你找到橙色种子，可以把它们种在温暖的沙地里。"),
-	]
-	dialogue_box.open_dialogue(_msg("Beach Ranger", "海滩护林员"), lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
-
-func _open_lake_dialogue() -> void:
-	player.controls_locked = true
-	prompt_box.hide()
-	_clear_inventory_sell_tooltip()
 	var lines: Array[String] = []
-	var speaker := _msg("Lake Keeper", "湖之守望者")
-	if world.level_variant == "pond" and inventory.has_item(CACTUS_DROP) and not inventory.has_item(SAXAUL_SEED) and not is_instance_valid(saxaul_boss):
+	if inventory.has_item(CACTUS_DROP) and not inventory.has_item(SAXAUL_SEED) and not is_instance_valid(saxaul_boss):
 		if inventory.remove_item(CACTUS_DROP, 1):
 			if inventory.try_add(SAXAUL_SEED, 1):
 				lines = [_msg("This cactus fruit carries the desert's strength. Take this saxaul seed.", "这颗仙人掌果实蕴含着沙漠的力量。拿着这颗梭梭树种子。")]
@@ -368,8 +356,23 @@ func _open_lake_dialogue() -> void:
 				lines = [_msg("Make room in your pack for the saxaul seed.", "请先为梭梭树种子腾出背包空间。")]
 		else:
 			lines = [_msg("I could not complete that exchange yet.", "这次兑换还无法完成。")]
-		dialogue_box.open_dialogue(speaker, lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
-		return
+	elif inventory.has_item(SAXAUL_SEED):
+		lines = [_msg("Plant the saxaul seed in the center of a clear three-by-three sand patch.", "把梭梭树种子种在一片完整 3×3 沙地的中央。")]
+	elif is_instance_valid(saxaul_boss):
+		lines = [_msg("The saxaul has taken root. Stand ready.", "梭梭树已经扎根，做好准备。")]
+	else:
+		lines = [
+			_msg("Ranger: Keep to the grass paths and leave the tide pools clear.", "护林员：请沿着草地小路行走，不要破坏潮池。"),
+			_msg("Bring me a cactus fruit and I can trade it for a saxaul seed.", "带一颗仙人掌果实给我，我可以用梭梭树种子和你交换。"),
+		]
+	dialogue_box.open_dialogue(_msg("Beach Ranger", "海滩护林员"), lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+
+func _open_lake_dialogue() -> void:
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var lines: Array[String] = []
+	var speaker := _msg("Lake Keeper", "湖之守望者")
 	match quest_state:
 		QUEST_AWAITING_PLANT:
 			if inventory.has_item(MUTATED_PEA_DROP) and inventory.can_add(LILY_SEED):
