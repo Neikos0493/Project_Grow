@@ -12,8 +12,9 @@ const ATTACK_RANGE := 230.0
 const MOVE_SPEED := 28.0
 const WANDER_INTERVAL := 2.4
 const VOLLEY_COOLDOWN := 1.6
-const VOLLEY_COUNT := 5
-const VOLLEY_SPREAD := 0.9
+const VOLLEY_COUNT := 3
+const LEAF_FAN_SPREAD := deg_to_rad(30.0)
+const LEAF_FAN_OFFSET := deg_to_rad(35.0)
 
 var cell := Vector2i.ZERO
 var target: MeadowPlayer
@@ -34,6 +35,8 @@ func setup(plant_cell: Vector2i, player_target: MeadowPlayer) -> void:
 	queue_redraw()
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_physics_process(true)
 	collision_layer = 4
 	collision_mask = 1
 	var shape_node := CollisionShape2D.new()
@@ -76,9 +79,11 @@ func _physics_process(delta: float) -> void:
 
 func _fire_leaf_fan(direction: Vector2) -> void:
 	var directions: Array[Vector2] = []
-	for index in range(VOLLEY_COUNT):
-		var ratio := float(index) / float(VOLLEY_COUNT - 1)
-		directions.append(direction.rotated(lerpf(-VOLLEY_SPREAD, VOLLEY_SPREAD, ratio)))
+	for leaf_sign in [-1.0, 1.0]:
+		var leaf_direction := direction.rotated(LEAF_FAN_OFFSET * leaf_sign)
+		for index in range(VOLLEY_COUNT):
+			var ratio := float(index) / float(VOLLEY_COUNT - 1)
+			directions.append(leaf_direction.rotated(lerpf(-LEAF_FAN_SPREAD, LEAF_FAN_SPREAD, ratio)))
 	projectile_requested.emit(global_position, directions)
 
 func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
@@ -114,7 +119,10 @@ func _draw() -> void:
 	draw_arc(Vector2(-14, -14 + leaf_bob), 11.0, -PI * 0.8, PI * 0.8, 16, Color("#8f4b2e"), 2.0)
 	draw_arc(Vector2(14, -14 - leaf_bob), 11.0, PI * 0.2, PI * 1.8, 16, Color("#8f4b2e"), 2.0)
 	if target != null and target.global_position.distance_to(global_position) <= ATTACK_RANGE:
-		draw_arc(Vector2(0, -13), ATTACK_RANGE, -VOLLEY_SPREAD, VOLLEY_SPREAD, 24, Color(0.95, 0.55, 0.2, 0.14), 1.0, true)
+		var target_angle := (target.global_position - global_position).angle()
+		for leaf_sign in [-1.0, 1.0]:
+			var fan_center: float = target_angle + LEAF_FAN_OFFSET * float(leaf_sign)
+			draw_arc(Vector2(0, -13), ATTACK_RANGE, fan_center - LEAF_FAN_SPREAD, fan_center + LEAF_FAN_SPREAD, 16, Color(0.95, 0.55, 0.2, 0.14), 1.0, true)
 	for index in range(health):
 		draw_circle(Vector2(-8 + index * 4, -34), 1.8, Color("#f6c15a"))
 

@@ -13,8 +13,9 @@ var collision_mask := 1
 var damage := 0
 var source: Node
 var tint := Color("#f3c969")
+var speed := SPEED
 
-func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969")) -> void:
+func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED) -> void:
 	global_position = origin
 	direction = aim.normalized() if aim.length_squared() > 0.001 else Vector2.RIGHT
 	collision_space = space
@@ -22,6 +23,7 @@ func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, targ
 	damage = hit_damage
 	source = hit_source
 	tint = color
+	speed = projectile_speed
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -30,7 +32,7 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	var from := global_position
-	var to := from + direction * SPEED * delta
+	var to := from + direction * speed * delta
 	if collision_space != null:
 		var query := PhysicsRayQueryParameters2D.create(from, to)
 		query.collision_mask = collision_mask

@@ -60,7 +60,7 @@ const ITEM_DEFINITIONS := {
 		"max_stack": MAX_STACK,
 		"icon": "orange_seed",
 		"sell_price": 4,
-		"buy_price": 8,
+		"buy_price": 5,
 		"description": "Plant it in beach sand to grow a fan-leaf cactus.",
 	},
 	"blue_seed": {

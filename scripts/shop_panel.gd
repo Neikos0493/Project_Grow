@@ -10,6 +10,7 @@ const PRODUCT_LAYOUT := [
 	{"id": "green_seed", "rect": Rect2(96, 52, 82, 108)},
 	{"id": "yellow_ball", "rect": Rect2(184, 52, 82, 108)},
 	{"id": "melee_weapon", "rect": Rect2(272, 52, 82, 108)},
+	{"id": "orange_seed", "rect": Rect2(360, 52, 82, 108)},
 ]
 const CARD_COLOR := Color("#493329")
 const CARD_HOVER_COLOR := Color("#634431")
@@ -17,12 +18,14 @@ const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
 
 @onready var product_hitboxes: Control = $ProductHitboxes
+@onready var scroll_bar: HScrollBar = $ProductScrollBar
 @onready var hover_details: Label = $HoverDetails
 @onready var close_button: Button = $CloseButton
 
 var inventory: MeadowInventory
 var hovered_item_id := ""
 var language := "zh"
+var scroll_offset := 0.0
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"
@@ -35,9 +38,16 @@ func _update_hover_text() -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	clip_contents = true
 	close_button.pressed.connect(_on_close_button_pressed)
+	scroll_bar.value_changed.connect(_on_scroll_changed)
+	scroll_bar.min_value = 0.0
+	scroll_bar.max_value = 442.0
+	scroll_bar.page = 360.0
+	scroll_bar.step = 1.0
 	hover_details.hide()
 	_create_product_hitboxes()
+	_update_scroll_content()
 	queue_redraw()
 
 func set_inventory(value: MeadowInventory) -> void:
@@ -54,7 +64,6 @@ func _create_product_hitboxes() -> void:
 	for product in PRODUCT_LAYOUT:
 		var hitbox := Control.new()
 		hitbox.name = "%sHitbox" % str(product["id"]).capitalize()
-		hitbox.position = product["rect"].position
 		hitbox.size = product["rect"].size
 		hitbox.mouse_filter = Control.MOUSE_FILTER_STOP
 		hitbox.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -62,6 +71,17 @@ func _create_product_hitboxes() -> void:
 		hitbox.mouse_exited.connect(_on_product_mouse_exited.bind(str(product["id"])))
 		hitbox.gui_input.connect(_on_product_gui_input.bind(str(product["id"])))
 		product_hitboxes.add_child(hitbox)
+
+func _on_scroll_changed(value: float) -> void:
+	scroll_offset = value
+	_update_scroll_content()
+	queue_redraw()
+
+func _update_scroll_content() -> void:
+	for product in PRODUCT_LAYOUT:
+		var hitbox := product_hitboxes.get_node_or_null("%sHitbox" % str(product["id"]).capitalize())
+		if hitbox != null:
+			hitbox.position = product["rect"].position - Vector2(scroll_offset, 0)
 
 func _draw() -> void:
 	var panel := Rect2(0, 0, size.x, size.y)
@@ -77,6 +97,7 @@ func _draw() -> void:
 func _draw_product(product: Dictionary) -> void:
 	var item_id := str(product["id"])
 	var card: Rect2 = product["rect"]
+	card.position.x -= scroll_offset
 	var hovered := item_id == hovered_item_id
 	draw_rect(card, CARD_HOVER_COLOR if hovered else CARD_COLOR, true)
 	draw_rect(card, GOLD if hovered else CARD_OUTLINE, false, 2.5 if hovered else 2.0)
@@ -112,6 +133,10 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_circle(center + Vector2(0, 2), 15.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 13.0, Color("#59b35b"))
 		draw_circle(center + Vector2(-4, -4), 3.5, Color("#a3de6d"))
+	elif icon == "orange_seed":
+		draw_circle(center + Vector2(0, 2), 15.0, Color(0.05, 0.1, 0.1, 0.35))
+		draw_circle(center, 13.0, Color("#e77a32"))
+		draw_circle(center + Vector2(-4, -4), 3.5, Color("#ffd080"))
 	elif icon == "hoe":
 		draw_line(center + Vector2(-10, 14), center + Vector2(7, -11), Color("#a8754f"), 5.0)
 		draw_line(center + Vector2(2, -11), center + Vector2(15, -11), Color("#c6cbd0"), 5.0)
