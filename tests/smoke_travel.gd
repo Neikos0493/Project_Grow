@@ -96,6 +96,8 @@ func _initialize() -> void:
 		"Travel returned before the player reached the destination disembark end"
 	):
 		return
+	if not _expect(_is_ship_adjacent_arrival(main.world), "Sunset Shore arrival is not beside its ship"):
+		return
 	if not _expect(not main.travel_transition.visible and is_zero_approx(main.travel_transition.overlay_alpha), "Travel returned before the reveal finished"):
 		return
 	if not _expect(main.player.health == 3, "Player health changed while traveling"):
@@ -132,6 +134,8 @@ func _initialize() -> void:
 		main.world.to_local(main.player.global_position).is_equal_approx(main.world.get_disembark_end_position()),
 		"Return travel completed before the player reached the disembark end"
 	):
+		return
+	if not _expect(_is_ship_adjacent_arrival(main.world), "Greenmeadow arrival is not beside its ship"):
 		return
 	var restored_source_plant: MeadowPursuingPlant
 	for child in main.plants.get_children():
@@ -191,6 +195,13 @@ func _initialize() -> void:
 	await process_frame
 	print("PASS: travel, map-local state, capacity, and save-failure regressions")
 	quit(0)
+
+func _is_ship_adjacent_arrival(map: MeadowWorld) -> bool:
+	var ship_cell := map.get_ship_cell()
+	var arrival_cell := map.world_to_cell(map.get_disembark_end_position())
+	return arrival_cell != ship_cell \
+		and maxi(abs(arrival_cell.x - ship_cell.x), abs(arrival_cell.y - ship_cell.y)) <= 1 \
+		and map.is_position_walkable(map.get_disembark_end_position())
 
 func _test_typed_plant_deaths(main: MeadowMain) -> bool:
 	main.map_host.set_runtime_suspended(true)

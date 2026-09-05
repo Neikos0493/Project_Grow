@@ -94,7 +94,7 @@ func _build_map() -> void:
 			"message_zh": "越过悬崖，古老的世界树让沉寂的天空停留在枝头。",
 		},
 		{
-			"id": "greenmeadow.ship", "cell": SHIP_CELL, "kind": "spaceship", "used": false, "no_collision": true,
+			"id": "greenmeadow.ship", "cell": SHIP_CELL, "kind": "spaceship", "used": false, "collision_size": Vector2(48.0, 24.0),
 			"label_en": "Open navigation radar", "label_zh": "打开导航雷达", "message_en": "Navigation radar ready.", "message_zh": "导航雷达已准备就绪。",
 		},
 	]

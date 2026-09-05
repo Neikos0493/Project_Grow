@@ -23,6 +23,8 @@ static func run(root: Window) -> Array[String]:
 	_check(shore.get_shop_node() != green.get_shop_node(), "Each map owns an independent shop instance", failures)
 	_check_shop_footprint(green, "Greenmeadow", failures)
 	_check_shop_footprint(shore, "Sunset Shore", failures)
+	_check_ship_arrival_and_collision(green, "Greenmeadow", failures)
+	_check_ship_arrival_and_collision(shore, "Sunset Shore", failures)
 	var shore_ids := _prop_ids(shore)
 	_check("sunset_shore.shop" in shore_ids, "Sunset Shore owns its shop prop", failures)
 	for prop_id in shore_ids:
@@ -107,6 +109,23 @@ static func _check_shop_footprint(map: MeadowWorld, map_name: String, failures: 
 	_check(shop_cells.size() == 8, "%s shop blocks 8 cells" % map_name, failures)
 	for cell in expected_cells:
 		_check(cell in shop_cells, "%s shop footprint includes %s" % [map_name, cell], failures)
+
+static func _check_ship_arrival_and_collision(map: MeadowWorld, map_name: String, failures: Array[String]) -> void:
+	var ship_cell := map.get_ship_cell()
+	var arrival_cell := map.world_to_cell(map.get_disembark_end_position())
+	_check(arrival_cell != ship_cell, "%s arrival does not overlap the ship cell" % map_name, failures)
+	_check(maxi(abs(arrival_cell.x - ship_cell.x), abs(arrival_cell.y - ship_cell.y)) <= 1, "%s arrival is adjacent to its ship" % map_name, failures)
+	_check(map.is_position_walkable(map.get_disembark_end_position()), "%s arrival is walkable" % map_name, failures)
+	var ship_collision_found := false
+	var map_collisions := map.get_node_or_null("MapCollisions")
+	if map_collisions != null:
+		for child in map_collisions.get_children():
+			if child is CollisionShape2D and child.shape is RectangleShape2D:
+				var rectangle := child.shape as RectangleShape2D
+				if rectangle.size.is_equal_approx(Vector2(48.0, 24.0)) and child.position.is_equal_approx(map.cell_to_world(ship_cell)):
+					ship_collision_found = true
+					break
+	_check(ship_collision_found, "%s has a blocking ship collision" % map_name, failures)
 
 static func _prop_ids(map: MeadowWorld) -> Array[String]:
 	var result: Array[String] = []

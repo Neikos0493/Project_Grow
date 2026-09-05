@@ -99,7 +99,7 @@ func _build_map() -> void:
 			"cell": SHIP_CELL,
 			"kind": "spaceship",
 			"used": false,
-			"no_collision": true,
+			"collision_size": Vector2(48.0, 24.0),
 			"label_en": "Open navigation radar",
 			"label_zh": "打开导航雷达",
 			"message_en": "Navigation radar ready.",

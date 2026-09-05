@@ -166,10 +166,14 @@ func get_ship_arrival_position() -> Vector2:
 	return get_disembark_end_position()
 
 func get_disembark_start_position() -> Vector2:
-	return cell_to_world(get_ship_cell()) + Vector2(0, 4.0)
+	# Start below the hull so the player never spawns inside its collision shape.
+	return get_disembark_end_position()
 
 func get_disembark_end_position() -> Vector2:
-	return get_initial_spawn_position()
+	# Arrive immediately below the ship rather than at this map's unrelated
+	# new-game spawn. Fall back around the ship if its landing tile is blocked.
+	var preferred_landing := cell_to_world(get_ship_cell() + Vector2i.DOWN)
+	return get_nearest_walkable_position(preferred_landing)
 
 func is_position_walkable(map_position: Vector2) -> bool:
 	return is_map_position_in_bounds(map_position) and is_walkable(world_to_cell(map_position))
@@ -698,7 +702,11 @@ func _create_collisions() -> void:
 	for prop in props:
 		if bool(prop.get("no_collision", false)):
 			continue
-		var obstacle_size := Vector2(TILE_SIZE, TILE_SIZE) if prop.get("kind", "") == "shop" else Vector2(18, 18)
+		var prop_kind := str(prop.get("kind", ""))
+		var obstacle_size := Vector2(TILE_SIZE, TILE_SIZE) if prop_kind == "shop" else Vector2(18.0, 18.0)
+		var configured_size: Variant = prop.get("collision_size", Vector2.ZERO)
+		if configured_size is Vector2 and configured_size.x > 0.0 and configured_size.y > 0.0:
+			obstacle_size = configured_size
 		for cell in _prop_cells(prop):
 			_add_rectangle_collision(map_collisions, cell_to_world(cell), obstacle_size)
 	var map_size := get_map_size_pixels()
