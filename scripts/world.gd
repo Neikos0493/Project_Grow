@@ -777,6 +777,20 @@ func _draw_prop(prop: Dictionary) -> void:
 			else:
 				draw_line(center + Vector2(-8, -7), center + Vector2(8, 7), Color("#d4a666"), 2.0)
 				draw_line(center + Vector2(8, -7), center + Vector2(-8, 7), Color("#d4a666"), 2.0)
+		"lake_npc":
+			_draw_flat_ellipse(center + Vector2(0, 11), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
+			# Blue-green robes and a reed staff distinguish the lake keeper from the shore ranger.
+			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-12, -12), center + Vector2(0, -20), center + Vector2(12, -12),
+				center + Vector2(8, -8), center + Vector2(-8, -8),
+			]), Color("#3e8a83"))
+			draw_line(center + Vector2(0, 1), center + Vector2(0, 12), Color("#275d68"), 9.0)
+			draw_line(center + Vector2(-5, 4), center + Vector2(-13, 14), Color("#275d68"), 3.0)
+			draw_line(center + Vector2(5, 4), center + Vector2(13, 14), Color("#275d68"), 3.0)
+			draw_line(center + Vector2(9, 8), center + Vector2(15, -8), Color("#8f7448"), 2.0)
+			draw_circle(center + Vector2(15, -9), 2.5, Color("#8de0d0"))
+			return
 		"ranger":
 			_draw_flat_ellipse(center + Vector2(0, 10), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.3))
 			draw_circle(center + Vector2(0, -5), 9.0, Color("#d6a36c"))
