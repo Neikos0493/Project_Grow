@@ -246,9 +246,9 @@ mouse_default_cursor_shape = 2
 
 [node name="HoverDetails" type="Label" parent="HUD/ShopPanel"]
 offset_left = 24.0
-offset_top = 170.0
+offset_top = 218.0
 offset_right = 336.0
-offset_bottom = 238.0
+offset_bottom = 272.0
 mouse_filter = 2
 visible = false
 autowrap_mode = 2

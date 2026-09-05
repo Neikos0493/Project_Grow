@@ -101,6 +101,7 @@ func _ready() -> void:
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
 	shop_panel.set_inventory(inventory)
+	shop_panel.set_map_variant(world.level_variant)
 	radar_panel.point_selected.connect(_on_radar_point_selected)
 	radar_panel.close_pressed.connect(_close_radar)
 	inventory_hud.set_inventory(inventory)

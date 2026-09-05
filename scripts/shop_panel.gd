@@ -5,13 +5,8 @@ extends Control
 signal buy_pressed(item_id: String)
 signal close_pressed
 
-const PRODUCT_LAYOUT := [
-	{"id": "hoe", "rect": Rect2(8, 52, 82, 108)},
-	{"id": "green_seed", "rect": Rect2(96, 52, 82, 108)},
-	{"id": "yellow_ball", "rect": Rect2(184, 52, 82, 108)},
-	{"id": "melee_weapon", "rect": Rect2(272, 52, 82, 108)},
-	{"id": "orange_seed", "rect": Rect2(360, 52, 82, 108)},
-]
+const CARD_SIZE := Vector2(68, 78)
+const CARD_GAP := 8.0
 const CARD_COLOR := Color("#493329")
 const CARD_HOVER_COLOR := Color("#634431")
 const CARD_OUTLINE := Color("#a87850")
@@ -25,7 +20,12 @@ const GOLD := Color("#f3c969")
 var inventory: MeadowInventory
 var hovered_item_id := ""
 var language := "zh"
-var scroll_offset := 0.0
+var beach_shop := false
+
+func set_map_variant(value: String) -> void:
+	beach_shop = value == "pond"
+	_rebuild_product_hitboxes()
+	queue_redraw()
 
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"
@@ -40,14 +40,10 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
 	close_button.pressed.connect(_on_close_button_pressed)
-	scroll_bar.value_changed.connect(_on_scroll_changed)
-	scroll_bar.min_value = 0.0
-	scroll_bar.max_value = 442.0
-	scroll_bar.page = 360.0
-	scroll_bar.step = 1.0
+	scroll_bar.hide()
 	hover_details.hide()
-	_create_product_hitboxes()
-	_update_scroll_content()
+	_rebuild_product_hitboxes()
+	resized.connect(_layout_products)
 	queue_redraw()
 
 func set_inventory(value: MeadowInventory) -> void:
@@ -55,33 +51,38 @@ func set_inventory(value: MeadowInventory) -> void:
 	queue_redraw()
 
 func is_shop_product(item_id: String) -> bool:
-	for product in PRODUCT_LAYOUT:
-		if str(product["id"]) == item_id:
-			return true
-	return false
+	return item_id in _visible_product_ids()
 
-func _create_product_hitboxes() -> void:
-	for product in PRODUCT_LAYOUT:
+func _visible_product_ids() -> Array[String]:
+	var ids: Array[String] = ["hoe", "green_seed", "yellow_ball", "melee_weapon"]
+	if beach_shop:
+		ids.append("orange_seed")
+	return ids
+
+func _rebuild_product_hitboxes() -> void:
+	for child in product_hitboxes.get_children():
+		child.free()
+	for item_id in _visible_product_ids():
 		var hitbox := Control.new()
-		hitbox.name = "%sHitbox" % str(product["id"]).capitalize()
-		hitbox.size = product["rect"].size
+		hitbox.name = "%sHitbox" % item_id.capitalize()
+		hitbox.size = CARD_SIZE
 		hitbox.mouse_filter = Control.MOUSE_FILTER_STOP
 		hitbox.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		hitbox.mouse_entered.connect(_on_product_mouse_entered.bind(str(product["id"])))
-		hitbox.mouse_exited.connect(_on_product_mouse_exited.bind(str(product["id"])))
-		hitbox.gui_input.connect(_on_product_gui_input.bind(str(product["id"])))
+		hitbox.mouse_entered.connect(_on_product_mouse_entered.bind(item_id))
+		hitbox.mouse_exited.connect(_on_product_mouse_exited.bind(item_id))
+		hitbox.gui_input.connect(_on_product_gui_input.bind(item_id))
 		product_hitboxes.add_child(hitbox)
+	_layout_products()
 
-func _on_scroll_changed(value: float) -> void:
-	scroll_offset = value
-	_update_scroll_content()
-	queue_redraw()
-
-func _update_scroll_content() -> void:
-	for product in PRODUCT_LAYOUT:
-		var hitbox := product_hitboxes.get_node_or_null("%sHitbox" % str(product["id"]).capitalize())
+func _layout_products() -> void:
+	var ids := _visible_product_ids()
+	var columns := maxi(1, floori((size.x - 16.0 + CARD_GAP) / (CARD_SIZE.x + CARD_GAP)))
+	for index in range(ids.size()):
+		var hitbox := product_hitboxes.get_node_or_null("%sHitbox" % ids[index].capitalize())
 		if hitbox != null:
-			hitbox.position = product["rect"].position - Vector2(scroll_offset, 0)
+			var row := index / columns
+			var column := index % columns
+			hitbox.position = Vector2(8.0 + column * (CARD_SIZE.x + CARD_GAP), 52.0 + row * (CARD_SIZE.y + CARD_GAP))
 
 func _draw() -> void:
 	var panel := Rect2(0, 0, size.x, size.y)
@@ -91,25 +92,29 @@ func _draw() -> void:
 		draw_line(Vector2(10, y), Vector2(size.x - 10, y), Color(0.2, 0.1, 0.08, 0.22), 1.0)
 	draw_circle(Vector2(18, 18), 2.0, Color("#e2b873"))
 	draw_circle(Vector2(size.x - 18, size.y - 18), 2.0, Color("#e2b873"))
-	for product in PRODUCT_LAYOUT:
-		_draw_product(product)
+	var ids := _visible_product_ids()
+	for index in range(ids.size()):
+		_draw_product(ids[index], _product_rect(index, ids.size()))
 
-func _draw_product(product: Dictionary) -> void:
-	var item_id := str(product["id"])
-	var card: Rect2 = product["rect"]
-	card.position.x -= scroll_offset
+func _product_rect(index: int, _item_count: int) -> Rect2:
+	var columns := maxi(1, floori((size.x - 16.0 + CARD_GAP) / (CARD_SIZE.x + CARD_GAP)))
+	var row := index / columns
+	var column := index % columns
+	return Rect2(Vector2(8.0 + column * (CARD_SIZE.x + CARD_GAP), 52.0 + row * (CARD_SIZE.y + CARD_GAP)), CARD_SIZE)
+
+func _draw_product(item_id: String, card: Rect2) -> void:
 	var hovered := item_id == hovered_item_id
 	draw_rect(card, CARD_HOVER_COLOR if hovered else CARD_COLOR, true)
 	draw_rect(card, GOLD if hovered else CARD_OUTLINE, false, 2.5 if hovered else 2.0)
 	if inventory == null:
 		return
 	var definition := inventory.get_item_definition(item_id)
-	var icon_center := card.position + Vector2(card.size.x * 0.5, 42.0)
+	var icon_center := card.position + Vector2(card.size.x * 0.5, 29.0)
 	_draw_item_icon(icon_center, str(definition.get("icon", "")))
 	var font := ThemeDB.fallback_font
 	var item_name := inventory.get_item_name(item_id)
 	var name_width := card.size.x - 10.0
-	draw_string(font, Vector2(card.position.x + 5.0, card.position.y + 77.0), item_name, HORIZONTAL_ALIGNMENT_CENTER, name_width, 13, Color("#f4e9c9"))
+	draw_string(font, Vector2(card.position.x + 5.0, card.position.y + 55.0), item_name, HORIZONTAL_ALIGNMENT_CENTER, name_width, 11, Color("#f4e9c9"))
 	_draw_price(card, inventory.get_buy_price(item_id))
 
 func _draw_price(card: Rect2, price: int) -> void:
