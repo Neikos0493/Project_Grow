@@ -6,7 +6,7 @@ var save_path := "user://autosave.json"
 var temp_path := "user://autosave.json.tmp"
 var backup_path := "user://autosave.json.bak"
 const MAX_SAVE_BYTES := 4 * 1024 * 1024
-const MAX_MAP_ENTRIES := 2
+const MAX_MAP_ENTRIES := 3
 const MAX_FARM_TILES := 960
 const MAX_WATER_GROWTH := 64
 const MAX_PERMANENT_GRASS := 960
@@ -16,7 +16,7 @@ const MAX_COINS := 999999999
 const MAX_HEALTH := 5
 const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
-const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
+const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore", &"world_tree"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
 const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss"]
 const KNOWN_ITEM_IDS := {
@@ -56,6 +56,9 @@ var container_energy := 0
 var sunflower_quest_state := 0
 var map_two_return_count := 0
 var pea_npc_state := 0
+var world_tree_map_unlocked := false
+var energy := 0
+var world_tree_energy := 0
 
 func _ready() -> void:
 	if not session_initialized:
@@ -81,6 +84,9 @@ func reset_session() -> void:
 	sunflower_quest_state = 0
 	map_two_return_count = 0
 	pea_npc_state = 0
+	world_tree_map_unlocked = false
+	energy = 0
+	world_tree_energy = 0
 
 func ensure_session() -> void:
 	if not session_initialized:
@@ -92,6 +98,8 @@ func capture_global(inventory: MeadowInventory, next_coins: int, health: int, ne
 	player_health = clampi(health, 0, MAX_HEALTH)
 	quest_state = clampi(next_quest_state, QUEST_STATE_MIN, QUEST_STATE_MAX)
 	container_energy = clampi(container_energy, 0, 100)
+	energy = clampi(energy, 0, 100)
+	world_tree_energy = clampi(world_tree_energy, 0, 100)
 	var valid_bosses: Array[StringName] = []
 	for boss_id in defeated_boss_ids:
 		if boss_id in KNOWN_BOSS_IDS and boss_id not in valid_bosses:
@@ -231,6 +239,9 @@ func _build_save_data() -> Dictionary:
 			"sunflower_quest_state": sunflower_quest_state,
 			"map_two_return_count": map_two_return_count,
 			"pea_npc_state": pea_npc_state,
+			"world_tree_map_unlocked": world_tree_map_unlocked,
+			"energy": energy,
+			"world_tree_energy": world_tree_energy,
 			"unlocked_map_ids": unlocked,
 		},
 		"maps": maps,
@@ -313,9 +324,15 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 			return {}
 		if String(boss_id) not in normalized_bosses:
 			normalized_bosses.append(String(boss_id))
-	var energy := mini(100, normalized_bosses.size() * 50)
+	var world_tree_map_unlocked := bool(data.get("world_tree_map_unlocked", false))
 	if not world_tree_blessing_unlocked:
 		unlocked.erase(String(&"sunset_shore"))
+	elif String(&"sunset_shore") not in unlocked:
+		unlocked.append(String(&"sunset_shore"))
+	if not world_tree_map_unlocked:
+		unlocked.erase(String(&"world_tree"))
+	elif String(&"world_tree") not in unlocked:
+		unlocked.append(String(&"world_tree"))
 	return {
 		"inventory": normalized_inventory,
 		"coins": clampi(int(data.get("coins", 9999)), 0, MAX_COINS),
@@ -325,10 +342,13 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"green_plantings_since_mutation": clampi(int(data.get("green_plantings_since_mutation", 0)), 0, 9),
 		"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
 		"defeated_boss_ids": normalized_bosses,
-		"container_energy": energy,
+		"container_energy": clampi(int(data.get("container_energy", normalized_bosses.size() * 50)), 0, 100),
 		"sunflower_quest_state": clampi(int(data.get("sunflower_quest_state", 0)), 0, 2),
 		"map_two_return_count": clampi(int(data.get("map_two_return_count", 0)), 0, 2),
 		"pea_npc_state": clampi(int(data.get("pea_npc_state", 0)), 0, 2),
+		"world_tree_map_unlocked": world_tree_map_unlocked,
+		"energy": clampi(int(data.get("energy", 0)), 0, 100),
+		"world_tree_energy": clampi(int(data.get("world_tree_energy", 0)), 0, 100),
 		"unlocked_map_ids": unlocked,
 	}
 
@@ -759,6 +779,9 @@ func _apply_valid_save(data: Dictionary) -> void:
 	sunflower_quest_state = clampi(int(global_data.get("sunflower_quest_state", 0)), 0, 2)
 	map_two_return_count = clampi(int(global_data.get("map_two_return_count", 0)), 0, 2)
 	pea_npc_state = clampi(int(global_data.get("pea_npc_state", 0)), 0, 2)
+	world_tree_map_unlocked = bool(global_data.get("world_tree_map_unlocked", false))
+	energy = clampi(int(global_data.get("energy", 0)), 0, 100)
+	world_tree_energy = clampi(int(global_data.get("world_tree_energy", 0)), 0, 100)
 	unlocked_map_ids.clear()
 	for value in global_data["unlocked_map_ids"]:
 		unlocked_map_ids.append(StringName(str(value)))

@@ -145,6 +145,9 @@ func get_plants_container() -> Node2D:
 func get_projectiles_container() -> Node2D:
 	return get_node("Runtime/Projectiles") as Node2D
 
+func uses_editor_tiles() -> bool:
+	return has_node("MapTiles")
+
 func set_language(value: String) -> void:
 	language = "zh" if value == "zh" else "en"
 	queue_redraw()
@@ -764,30 +767,32 @@ func _add_rectangle_collision(parent: Node, center: Vector2, size: Vector2) -> v
 func _draw() -> void:
 	_draw_background()
 	_draw_scenery_before_tiles()
-	for y in range(MAP_SIZE.y):
-		for x in range(MAP_SIZE.x):
-			var cell := Vector2i(x, y)
-			var tile_type: int = cells[y][x]
-			var rect := Rect2(Vector2(x, y) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
-			draw_rect(rect, _tile_color(tile_type, cell))
-			draw_line(rect.position, rect.position + Vector2(TILE_SIZE, 0), GRID_COLOR, 1.0)
-			draw_line(rect.position, rect.position + Vector2(0, TILE_SIZE), GRID_COLOR, 1.0)
-			if tile_type == WATER:
-				var wave_x := rect.position.x + 7.0 + float((x * 11 + y * 5) % 12)
-				draw_line(Vector2(wave_x, rect.position.y + 12), Vector2(wave_x + 9, rect.position.y + 12), Color(0.72, 0.91, 0.9, 0.34), 1.0)
-				draw_line(Vector2(wave_x - 3, rect.position.y + 22), Vector2(wave_x + 5, rect.position.y + 22), Color(0.72, 0.91, 0.9, 0.2), 1.0)
+	if not uses_editor_tiles():
+		for y in range(MAP_SIZE.y):
+			for x in range(MAP_SIZE.x):
+				var cell := Vector2i(x, y)
+				var tile_type: int = cells[y][x]
+				var rect := Rect2(Vector2(x, y) * TILE_SIZE, Vector2.ONE * TILE_SIZE)
+				draw_rect(rect, _tile_color(tile_type, cell))
+				draw_line(rect.position, rect.position + Vector2(TILE_SIZE, 0), GRID_COLOR, 1.0)
+				draw_line(rect.position, rect.position + Vector2(0, TILE_SIZE), GRID_COLOR, 1.0)
+				if tile_type == WATER:
+					var wave_x := rect.position.x + 7.0 + float((x * 11 + y * 5) % 12)
+					draw_line(Vector2(wave_x, rect.position.y + 12), Vector2(wave_x + 9, rect.position.y + 12), Color(0.72, 0.91, 0.9, 0.34), 1.0)
+					draw_line(Vector2(wave_x - 3, rect.position.y + 22), Vector2(wave_x + 5, rect.position.y + 22), Color(0.72, 0.91, 0.9, 0.2), 1.0)
 	_draw_scenery_after_tiles()
-	for prop in props:
-		if prop.get("kind", "") == "pea_npc" and not enable_pea_npc:
-			continue
-		if prop.get("kind", "") != "shop":
-			_draw_prop(prop)
-	for cell in farm_tiles:
-		_draw_farm_tile(cell, farm_tiles[cell])
-	for cell in water_growth:
-		_draw_water_growth_cell(cell, water_growth[cell])
-	for drop in drops:
-		_draw_drop(drop)
+	if not has_node("MapDecorations"):
+		for prop in props:
+			if prop.get("kind", "") == "pea_npc" and not enable_pea_npc:
+				continue
+			if prop.get("kind", "") != "shop":
+				_draw_prop(prop)
+		for cell in farm_tiles:
+			_draw_farm_tile(cell, farm_tiles[cell])
+		for cell in water_growth:
+			_draw_water_growth_cell(cell, water_growth[cell])
+		for drop in drops:
+			_draw_drop(drop)
 
 func _draw_background() -> void:
 	pass
