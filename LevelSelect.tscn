@@ -1,0 +1,305 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/level_select.gd" id="1_select"]
+[ext_resource type="Texture2D" path="res://assets/level_select_background.png" id="2_map"]
+
+[sub_resource type="StyleBoxFlat" id="StyleCard"]
+bg_color = Color(0.035, 0.071, 0.09, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.82, 0.69, 0.4, 0.72)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 12
+shadow_offset = Vector2(0, 5)
+
+[sub_resource type="StyleBoxFlat" id="StyleActive"]
+bg_color = Color(0.78, 0.48, 0.21, 0.98)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleActiveHover"]
+bg_color = Color(0.95, 0.72, 0.32, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleLocked"]
+bg_color = Color(0.13, 0.17, 0.17, 0.88)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.55, 0.61, 0.52, 0.35)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBack"]
+bg_color = Color(0.055, 0.11, 0.13, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.82, 0.69, 0.4, 0.58)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="LevelSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_select")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_map")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.04, 0.08, 0.08, 0.22)
+
+[node name="Header" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 28.0
+offset_bottom = 116.0
+grow_horizontal = 2
+theme_override_constants/separation = 4
+
+[node name="Kicker" type="Label" parent="Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.27, 0.14, 0.9)
+theme_override_font_sizes/font_size = 12
+text = "CHOOSE YOUR DESTINATION"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.16, 0.2, 0.14, 1)
+theme_override_colors/font_shadow_color = Color(1, 0.9, 0.62, 0.45)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 30
+text = "MEADOW MAP"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.27, 0.32, 0.22, 0.88)
+theme_override_font_sizes/font_size = 12
+text = "Each place has a story to grow."
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -455.0
+offset_top = -92.0
+offset_right = 455.0
+offset_bottom = 168.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+
+[node name="MeadowCard" type="PanelContainer" parent="Cards"]
+custom_minimum_size = Vector2(290, 260)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCard")
+
+[node name="VBox" type="VBoxContainer" parent="Cards/MeadowCard"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Number" type="Label" parent="Cards/MeadowCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.68, 0.33, 1)
+theme_override_font_sizes/font_size = 12
+text = "01  /  AVAILABLE"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Cards/MeadowCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.86, 0.57, 1)
+theme_override_font_sizes/font_size = 22
+text = "GREENMEADOW"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Cards/MeadowCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.77, 0.86, 0.76, 1)
+theme_override_font_sizes/font_size = 12
+text = "Till the soil.\nPlant something new."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Cards/MeadowCard/VBox"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SelectButton" type="Button" parent="Cards/MeadowCard/VBox"]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_colors/font_hover_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleActive")
+theme_override_styles/hover = SubResource("StyleActiveHover")
+theme_override_styles/focus = SubResource("StyleActiveHover")
+theme_override_styles/pressed = SubResource("StyleActiveHover")
+text = "ENTER MEADOW"
+
+[node name="PondCard" type="PanelContainer" parent="Cards"]
+custom_minimum_size = Vector2(290, 260)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCard")
+
+[node name="VBox" type="VBoxContainer" parent="Cards/PondCard"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Number" type="Label" parent="Cards/PondCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.64, 0.57, 1)
+theme_override_font_sizes/font_size = 12
+text = "02  /  LOCKED"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Cards/PondCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.77, 0.82, 0.71, 0.82)
+theme_override_font_sizes/font_size = 22
+text = "WHISPER POND"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Cards/PondCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.74, 0.65, 0.86)
+theme_override_font_sizes/font_size = 12
+text = "Something is moving\nbeneath the lilies."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Cards/PondCard/VBox"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SelectButton" type="Button" parent="Cards/PondCard/VBox"]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.6, 0.8)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleLocked")
+theme_override_styles/disabled = SubResource("StyleLocked")
+text = "LOCKED"
+disabled = true
+
+[node name="TreeCard" type="PanelContainer" parent="Cards"]
+custom_minimum_size = Vector2(290, 260)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCard")
+
+[node name="VBox" type="VBoxContainer" parent="Cards/TreeCard"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Number" type="Label" parent="Cards/TreeCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.64, 0.57, 1)
+theme_override_font_sizes/font_size = 12
+text = "03  /  LOCKED"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Cards/TreeCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.77, 0.82, 0.71, 0.82)
+theme_override_font_sizes/font_size = 22
+text = "WORLD TREE"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Cards/TreeCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.74, 0.65, 0.86)
+theme_override_font_sizes/font_size = 12
+text = "Climb above the clouds\nand find the old roots."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Cards/TreeCard/VBox"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SelectButton" type="Button" parent="Cards/TreeCard/VBox"]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.6, 0.8)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleLocked")
+theme_override_styles/disabled = SubResource("StyleLocked")
+text = "LOCKED"
+disabled = true
+
+[node name="BackButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 28.0
+offset_top = 28.0
+offset_right = 158.0
+offset_bottom = 68.0
+theme_override_colors/font_color = Color(0.19, 0.24, 0.17, 1)
+theme_override_colors/font_hover_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBack")
+theme_override_styles/hover = SubResource("StyleActiveHover")
+theme_override_styles/focus = SubResource("StyleActiveHover")
+text = "<  MAIN MENU"
+
+[node name="Notice" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -250.0
+offset_top = 484.0
+offset_right = 250.0
+offset_bottom = 514.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.27, 0.32, 0.22, 0.9)
+theme_override_font_sizes/font_size = 11
+text = "SELECT A REGION TO BEGIN"
+horizontal_alignment = 1

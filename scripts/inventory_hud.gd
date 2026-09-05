@@ -59,6 +59,14 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
 		draw_circle(center, 9.0, Color("#59b35b"))
 		draw_circle(center + Vector2(-3, -3), 2.5, Color("#a3de6d"))
+	elif icon == "blue_seed":
+		draw_circle(center + Vector2(0, 2), 11.0, Color(0.05, 0.1, 0.1, 0.35))
+		draw_circle(center, 9.0, Color("#4b9ddd"))
+		draw_circle(center + Vector2(-3, -3), 2.5, Color("#b6e8ff"))
+	elif icon == "quest_item_1":
+		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#b36be0"), true)
+		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#ead3ff"), false, 2.0)
+		draw_circle(center, 3.0, Color("#fff0a8"))
 	elif icon == "hoe":
 		draw_line(center + Vector2(-7, 10), center + Vector2(5, -8), Color("#a8754f"), 4.0)
 		draw_line(center + Vector2(1, -8), center + Vector2(11, -8), Color("#c6cbd0"), 4.0)
@@ -67,6 +75,10 @@ func _draw_item_icon(center: Vector2, item_id: String) -> void:
 		draw_line(center + Vector2(0, 10), center + Vector2(0, -5), Color("#24523a"), 3.0)
 		draw_circle(center + Vector2(-5, -5), 6.0, Color("#4d9b55"))
 		draw_circle(center + Vector2(5, -3), 6.0, Color("#72c45f"))
+	elif icon == "melee_weapon":
+		draw_rect(Rect2(center + Vector2(-12, -4), Vector2(24, 8)), Color("#f3c969"), true)
+		draw_rect(Rect2(center + Vector2(-12, -4), Vector2(24, 8)), Color("#26353b"), false, 2.0)
+		draw_rect(Rect2(center + Vector2(-7, -2), Vector2(14, 2)), Color(1.0, 0.96, 0.72, 0.8), true)
 	else:
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#b68a5b"), true)
 		draw_rect(Rect2(center - Vector2(9, 9), Vector2(18, 18)), Color("#e9dfc4"), false, 2.0)

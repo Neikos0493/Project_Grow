@@ -5,15 +5,28 @@ extends Node2D
 const HOE := "hoe"
 const GREEN_SEED := "green_seed"
 const YELLOW_BALL := "yellow_ball"
+const MELEE_WEAPON := "melee_weapon"
 const PLANT := "plant"
-const YELLOW_BALL_PRICE := 50
+const BLUE_SEED := "blue_seed"
+const QUEST_ITEM_1 := "quest_item_1"
 const STARTING_COINS := 9999
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
 const PLANT_MASK := 4
+const MONSTER_MASK := 16
+const RESPAWN_HOLD_SECONDS := 2.0
+const WATER_GROW_TIME := 2.5
+const WATER_SPREAD_INTERVAL := 0.18
+const WATER_EMERGE_DELAY := 0.65
+const QUEST_AWAITING_PLANT := 0
+const QUEST_SEED_GRANTED := 1
+const QUEST_WATER_GROWING := 2
+const QUEST_MONSTER_ACTIVE := 3
+const QUEST_DEFEATED := 4
 
 @onready var world: MeadowWorld = $World
 @onready var player: MeadowPlayer = $Player
+@onready var melee_weapon: MeadowMeleeWeapon = $Player/MeleeWeapon
 @onready var camera: Camera2D = $Player/Camera2D
 @onready var shop: MeadowShop = $Shop
 @onready var crosshair: MeadowCrosshair = $CursorLayer/Crosshair
@@ -21,22 +34,48 @@ const PLANT_MASK := 4
 @onready var projectiles: Node2D = $Projectiles
 @onready var plants: Node2D = $Plants
 @onready var inventory_hud: MeadowInventoryHud = $HUD/InventoryBar
+@onready var inventory_sell_tooltip: Label = $HUD/InventorySellTooltip
 @onready var coin_label: Label = $HUD/TopBar/CoinLabel
 @onready var health_label: Label = $HUD/TopBar/HealthLabel
 @onready var shop_panel: MeadowShopPanel = $HUD/ShopPanel
+@onready var radar_panel: Control = $HUD/RadarPanel
+@onready var travel_transition: Control = $HUD/TravelTransition
 @onready var prompt_box: ColorRect = $HUD/PromptBox
 @onready var prompt_label: Label = $HUD/PromptBox/Prompt
 @onready var toast_box: ColorRect = $HUD/ToastBox
 @onready var toast_label: Label = $HUD/ToastBox/Toast
+@onready var death_overlay: ColorRect = $HUD/DeathOverlay
+@onready var respawn_progress: ProgressBar = $HUD/DeathOverlay/DeathCard/RespawnProgress
+@onready var dialogue_box: MeadowDialogueBox = $HUD/DialogueBox
 
 var coins := STARTING_COINS
+var language := "en"
 var shop_open := false
+var radar_open := false
 var plant_entities: Dictionary = {}
 var _last_prompt := ""
+var _inventory_sell_tooltip_slot := -1
+var _inventory_sell_tooltip_item_id := ""
 var _toast_tween: Tween
+var _respawn_hold_elapsed := 0.0
+var _respawn_triggered_for_death := false
+var quest_state := QUEST_AWAITING_PLANT
+var water_root := Vector2i(-1, -1)
+var water_growth_elapsed := 0.0
+var water_spread_elapsed := 0.0
+var water_spread_cells: Array[Vector2i] = []
+var water_spread_index := 0
+var water_emerge_elapsed := 0.0
+var lake_monster: MeadowLakeMonster
 
 func _ready() -> void:
-	player.position = world.cell_to_world(world.PLAYER_START_CELL)
+	_load_language()
+	world.set_language(language)
+	inventory.set_language(language)
+	shop_panel.set_language(language)
+	radar_panel.set_language(language)
+	_apply_game_language()
+	player.position = world.cell_to_world(world.get_player_start_cell())
 	shop.position = world.get_shop_ground_position()
 	player.z_index = 10
 	_update_depth_order()
@@ -51,32 +90,88 @@ func _ready() -> void:
 	player.fire_requested.connect(_on_fire_requested)
 	player.health_changed.connect(_on_health_changed)
 	player.died.connect(_on_player_died)
+	dialogue_box.closed.connect(_on_dialogue_closed)
 	shop_panel.buy_pressed.connect(_on_buy_pressed)
 	shop_panel.close_pressed.connect(_close_shop)
+	shop_panel.set_inventory(inventory)
+	radar_panel.point_selected.connect(_on_radar_point_selected)
+	radar_panel.close_pressed.connect(_close_radar)
 	inventory_hud.set_inventory(inventory)
 	inventory.inventory_changed.connect(_refresh_inventory)
 	inventory.selection_changed.connect(_refresh_inventory)
-	if inventory.get_selected_item_id().is_empty():
-		inventory.try_add(HOE)
-		inventory.try_add(GREEN_SEED, 3)
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 	shop_panel.hide()
+	radar_panel.hide()
+	dialogue_box.hide()
 	prompt_box.hide()
+	death_overlay.hide()
+	respawn_progress.max_value = RESPAWN_HOLD_SECONDS
+	respawn_progress.value = 0.0
 	_on_health_changed(player.health, player.MAX_HEALTH)
 	_refresh_inventory()
 	_refresh_coins()
-	_show_toast("Explore the meadow. Find the mailbox.")
+	_show_toast(_msg("Explore the meadow. Find the mailbox.", "探索草甸，找到邮箱。"))
+	if world.level_variant == "pond":
+		call_deferred("_play_arrival")
 
-func _process(_delta: float) -> void:
+func _play_arrival() -> void:
+	player.controls_locked = true
+	var player_target := world.cell_to_world(world.get_player_start_cell())
+	player.position = world.cell_to_world(Vector2i(20, 1)) + Vector2(0, 4)
+	world.set_ship_transition_offset(Vector2(0, -220))
+	world.set_ship_flame_length(48.0)
+	var ship_tween := create_tween().set_parallel(true)
+	ship_tween.tween_property(world, "ship_transition_offset", Vector2.ZERO, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ship_tween.tween_method(world.set_ship_flame_length, 48.0, 12.0, 1.2)
+	var player_tween := create_tween()
+	player_tween.tween_interval(1.0)
+	player_tween.tween_property(player, "position", player_target, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	travel_transition.play_arrival()
+	await get_tree().create_timer(2.4).timeout
+	if not player.dead:
+		player.controls_locked = false
+
+func _load_language() -> void:
+	var config := ConfigFile.new()
+	if config.load("user://settings.cfg") == OK:
+		language = str(config.get_value("settings", "language", "en"))
+
+func _msg(english: String, chinese: String) -> String:
+	return chinese if language == "zh" else english
+
+func _apply_game_language() -> void:
+	$HUD/TopBar/Title.text = world.get_level_title()
+	$HUD/TopBar/Subtitle.text = _msg("A quiet place to explore", "一处宁静的探索之地")
+	$HUD/TopBar/Help.text = _msg("WASD  Move    E  Interact", "WASD 移动    E 互动")
+	$HUD/PromptBox/Prompt.text = _msg("E  Interact", "E 互动")
+	$HUD/ToastBox/Toast.text = _msg("Explore the meadow.", "探索这片草甸。")
+	$HUD/DeathOverlay/DeathCard/DeathTitle.text = _msg("YOU FAINTED", "你昏倒了")
+	$HUD/DeathOverlay/DeathCard/RespawnInstruction.text = _msg("Hold SPACE for 2 seconds to return", "长按空格键 2 秒返回")
+	$HUD/ShopPanel/DimLabel.text = _msg("WOODLAND SHOP", "林地商店")
+	$HUD/DialogueBox/Panel/Hint.text = _msg("E  Continue|E  Close", "E  继续|E  关闭")
+
+func _process(delta: float) -> void:
+	_update_water_encounter(delta)
 	crosshair.queue_redraw()
 	_update_depth_order()
 	if not world.drops.is_empty():
 		world.queue_redraw()
-	if not shop_open and not player.dead:
+	if player.dead:
+		prompt_box.hide()
+		_clear_inventory_sell_tooltip()
+		_update_respawn_hold(delta)
+		return
+	if not shop_open:
 		_try_pickup()
+	if dialogue_box.is_open() or radar_open:
+		prompt_box.hide()
+		_clear_inventory_sell_tooltip()
+		return
 	if shop_open:
 		prompt_box.hide()
+		_update_inventory_sell_tooltip()
 		return
+	_update_inventory_sell_tooltip()
 	var next_prompt := world.get_interaction_prompt(player.global_position, player.facing)
 	if next_prompt == _last_prompt:
 		return
@@ -87,7 +182,26 @@ func _process(_delta: float) -> void:
 		prompt_label.text = "E  " + next_prompt
 		prompt_box.show()
 
+func _input(event: InputEvent) -> void:
+	if player.dead or radar_open or dialogue_box.is_open():
+		return
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event != null and mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		var slot_index := inventory_hud.get_slot_at_viewport_position(mouse_event.position)
+		if slot_index >= 0:
+			inventory.select_slot(slot_index)
+			get_viewport().set_input_as_handled()
+
 func _unhandled_input(event: InputEvent) -> void:
+	if dialogue_box.is_open():
+		return
+	if player.dead:
+		return
+	if radar_open:
+		if _is_escape(event):
+			_close_radar()
+			get_viewport().set_input_as_handled()
+		return
 	if shop_open:
 		if _is_escape(event):
 			_close_shop()
@@ -127,6 +241,11 @@ func _update_depth_order() -> void:
 	shop.z_index = 11 if same_column and player.global_position.y <= shop_edge_y else 9
 
 func _on_interaction_requested() -> void:
+	if dialogue_box.is_open():
+		dialogue_box.advance()
+		return
+	if player.dead or melee_weapon.swinging:
+		return
 	if shop_open:
 		_close_shop()
 		return
@@ -134,23 +253,101 @@ func _on_interaction_requested() -> void:
 	if not target.is_empty() and target["kind"] == "shop":
 		_open_shop()
 		return
+	if not target.is_empty() and target["kind"] == "spaceship":
+		_open_radar()
+		return
+	if not target.is_empty() and target["kind"] == "lake_npc":
+		_open_lake_dialogue()
+		return
 	if not target.is_empty() and target["kind"] == "crate" and not bool(target["used"]):
 		if not inventory.can_add(GREEN_SEED, 3):
-			_show_toast("Inventory is full.")
+			_show_toast(_msg("Inventory is full.", "背包已满。"))
 			return
 	var message := world.interact(player.global_position, player.facing)
-	if not message.is_empty() and not target.is_empty() and target["kind"] == "crate" and message == "You found a seed packet.":
+	if not message.is_empty() and not target.is_empty() and target["kind"] == "crate":
 		if inventory.try_add(GREEN_SEED, 3):
-			message = "You found 3 green seeds."
-
+			message = _msg("You found 3 green seeds.", "你找到了 3 颗绿种子。")
 		else:
-			_show_toast("Inventory is full.")
+			_show_toast(_msg("Inventory is full.", "背包已满。"))
 			return
-	_show_toast("Nothing to interact with here." if message.is_empty() else message)
+	_show_toast(_msg("Nothing to interact with here.", "这里没有可互动的东西。") if message.is_empty() else message)
+
+func _open_lake_dialogue() -> void:
+	player.controls_locked = true
+	prompt_box.hide()
+	_clear_inventory_sell_tooltip()
+	var lines: Array[String] = []
+	var speaker := _msg("Lake Keeper", "湖之守望者")
+	match quest_state:
+		QUEST_AWAITING_PLANT:
+			if inventory.has_item(PLANT) and inventory.can_add(BLUE_SEED):
+				if inventory.remove_item(PLANT, 1):
+					if inventory.try_add(BLUE_SEED, 1):
+						quest_state = QUEST_SEED_GRANTED
+						lines = [_msg("Thank you. This blue seed belongs in the pond.", "谢谢。把这颗蓝色种子种进池塘吧。")]
+					else:
+						# Restore the delivered plant if the reward transaction fails.
+						inventory.try_add(PLANT, 1)
+						lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
+				else:
+					lines = [_msg("I could not accept that plant yet.", "我现在还不能接受这株植物。")]
+			elif inventory.has_item(PLANT):
+				lines = [_msg("Make room in your pack before delivering the plant.", "请先为蓝色种子腾出背包空间。")]
+			else:
+				lines = [_msg("Bring me one mature plant from the meadow.", "带一株草甸里的成熟植物给我。")]
+		QUEST_SEED_GRANTED:
+			lines = [_msg("Plant the blue seed in the pond to awaken the lake.", "把蓝色种子种在池塘里，唤醒湖水。")]
+		QUEST_WATER_GROWING, QUEST_MONSTER_ACTIVE:
+			lines = [_msg("The lake is already awake. Be careful.", "湖水已经醒来。小心。")]
+		QUEST_DEFEATED:
+			lines = [_msg("The lake is quiet again. Keep the relic safe.", "湖水再次平静了。保管好那件遗物。")]
+	dialogue_box.open_dialogue(speaker, lines, _msg("E  Continue|E  Close", "E  继续|E  关闭"))
+
+func _on_dialogue_closed() -> void:
+	player.controls_locked = player.dead
+	_last_prompt = ""
+
+func _open_radar() -> void:
+	radar_open = true
+	player.controls_locked = true
+	_clear_inventory_sell_tooltip()
+	prompt_box.hide()
+	radar_panel.show()
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+func _close_radar() -> void:
+	radar_open = false
+	player.controls_locked = false
+	radar_panel.hide()
+	_last_prompt = ""
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+
+func _on_radar_point_selected(point_id: int) -> void:
+	match point_id:
+		1:
+			_close_radar()
+			if world.level_variant == "pond":
+				get_tree().change_scene_to_file("res://Main.tscn")
+			else:
+				_show_toast(_msg("Greenmeadow is already in range.", "绿野就在附近。"))
+		2:
+			_close_radar()
+			player.controls_locked = true
+			var departure_tween := create_tween().set_parallel(true)
+			departure_tween.tween_property(world, "ship_transition_offset", Vector2(0, -220), 1.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			departure_tween.tween_method(world.set_ship_flame_length, 12.0, 48.0, 0.55)
+			travel_transition.play_departure("res://MainPond.tscn")
+		3:
+			_close_radar()
+			_show_toast(_msg("World Tree signal locked. Keep exploring the meadow.", "世界树信号已锁定，继续探索草甸吧。"))
 
 func _open_shop() -> void:
+	if player.dead:
+		return
+	melee_weapon.cancel_swing()
 	shop_open = true
 	player.controls_locked = true
+	_clear_inventory_sell_tooltip()
 	shop_panel.clear_hover()
 	shop_panel.show()
 	prompt_box.hide()
@@ -158,50 +355,98 @@ func _open_shop() -> void:
 
 func _close_shop() -> void:
 	shop_open = false
-	player.controls_locked = false
+	player.controls_locked = player.dead
+	_clear_inventory_sell_tooltip()
 	shop_panel.clear_hover()
 	shop_panel.hide()
 	_last_prompt = ""
 
-func _on_buy_pressed() -> void:
-	if coins < YELLOW_BALL_PRICE:
-		_show_toast("Not enough coins.")
+func _on_buy_pressed(item_id: String) -> void:
+	if player.dead or not shop_open or not shop_panel.is_shop_product(item_id):
 		return
-	if not inventory.can_add(YELLOW_BALL):
-		_show_toast("Inventory is full.")
+	var price := inventory.get_buy_price(item_id)
+	if price <= 0:
 		return
-	if inventory.try_add(YELLOW_BALL):
-		coins -= YELLOW_BALL_PRICE
-		_refresh_coins()
-		_show_toast("Bought a yellow ball for 50 coins.")
+	if coins < price:
+		_show_toast(_msg("Not enough coins.", "金币不足。"))
+		return
+	if not inventory.can_add(item_id):
+		_show_toast(_msg("Inventory is full.", "背包已满。"))
+		return
+	if not inventory.try_add(item_id):
+		_show_toast(_msg("Inventory is full.", "背包已满。"))
+		return
+	coins -= price
+	_refresh_coins()
+	_show_toast(_msg("Bought %s for %d coins." % [inventory.get_item_name(item_id), price], "购买了 %s，花费 %d 金币。" % [inventory.get_item_name(item_id), price]))
 
 func _sell_inventory_slot(slot_index: int) -> void:
 	if slot_index < 0:
 		return
 	var slot := inventory.get_slot(slot_index)
 	var item_id := str(slot.get("id", ""))
-	if item_id != PLANT:
-		_show_toast("Only plants can be sold here.")
+	if item_id.is_empty():
 		return
 	var price := inventory.get_sell_price(item_id)
-	if price <= 0 or not inventory.remove_from_slot(slot_index):
+	if price <= 0:
+		_show_toast(_msg("%s cannot be sold here." % inventory.get_item_name(item_id), "这里不能出售%s。" % inventory.get_item_name(item_id)))
+		return
+	if not inventory.remove_from_slot(slot_index):
 		return
 	coins += price
 	_refresh_coins()
-	_show_toast("Sold 1 plant for %d coins." % price)
+	_show_toast(_msg("Sold 1 %s for %d coins." % [inventory.get_item_name(item_id), price], "卖出 1 个%s，获得 %d 金币。" % [inventory.get_item_name(item_id), price]))
+	_inventory_sell_tooltip_slot = -1
+	_update_inventory_sell_tooltip()
+
+func _update_inventory_sell_tooltip() -> void:
+	if player.dead or radar_open or dialogue_box.is_open():
+		_clear_inventory_sell_tooltip()
+		return
+	var mouse_position := get_viewport().get_mouse_position()
+	var slot_index := inventory_hud.get_slot_at_viewport_position(mouse_position)
+	if slot_index < 0:
+		_clear_inventory_sell_tooltip()
+		return
+	var slot := inventory.get_slot(slot_index)
+	var item_id := str(slot.get("id", ""))
+	if item_id.is_empty() or int(slot.get("count", 0)) <= 0:
+		_clear_inventory_sell_tooltip()
+		return
+	var price := inventory.get_sell_price(item_id)
+	if price <= 0:
+		_clear_inventory_sell_tooltip()
+		return
+	if _inventory_sell_tooltip_slot != slot_index or _inventory_sell_tooltip_item_id != item_id:
+		inventory_sell_tooltip.text = "%s\n%s" % [inventory.get_item_name(item_id), _msg("SELL PRICE: %d COINS" % price, "售价：%d 金币" % price)]
+		_inventory_sell_tooltip_slot = slot_index
+		_inventory_sell_tooltip_item_id = item_id
+	var tooltip_size := inventory_sell_tooltip.size
+	var viewport_size := get_viewport_rect().size
+	var position := mouse_position + Vector2(14.0, -tooltip_size.y - 10.0)
+	position.x = clampf(position.x, 8.0, viewport_size.x - tooltip_size.x - 8.0)
+	position.y = clampf(position.y, 8.0, viewport_size.y - tooltip_size.y - 8.0)
+	inventory_sell_tooltip.position = position
+	inventory_sell_tooltip.show()
+
+func _clear_inventory_sell_tooltip() -> void:
+	_inventory_sell_tooltip_slot = -1
+	_inventory_sell_tooltip_item_id = ""
+	inventory_sell_tooltip.text = ""
+	inventory_sell_tooltip.hide()
 
 func _drop_selected_item() -> void:
 	var item_id := inventory.get_selected_item_id()
 	if item_id.is_empty():
-		_show_toast("This slot is empty.")
+		_show_toast(_msg("This slot is empty.", "当前栏位为空。"))
 		return
 	if not inventory.is_droppable(item_id):
-		_show_toast("The hoe cannot be dropped.")
+		_show_toast(_msg("%s cannot be dropped." % inventory.get_item_name(item_id), "%s不能丢弃。" % inventory.get_item_name(item_id)))
 		return
 	if not inventory.remove_selected():
 		return
 	world.add_drop(player.global_position, item_id)
-	_show_toast("Dropped %s. It can be picked up in 3 seconds." % inventory.get_item_name(item_id))
+	_show_toast(_msg("Dropped %s. It can be picked up in 3 seconds." % inventory.get_item_name(item_id), "已丢弃 %s，3 秒后可以拾取。" % inventory.get_item_name(item_id)))
 
 func _try_pickup() -> void:
 	var index := world.get_pickup_candidate(player.global_position)
@@ -214,10 +459,10 @@ func _try_pickup() -> void:
 		return
 	var taken := world.take_drop(index)
 	if inventory.try_add(str(taken["item_id"]), int(taken["count"])):
-		_show_toast("Picked up %s." % inventory.get_item_name(str(taken["item_id"])))
+		_show_toast(_msg("Picked up %s." % inventory.get_item_name(str(taken["item_id"])), "拾取了 %s。" % inventory.get_item_name(str(taken["item_id"]))))
 
 func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
-	if shop_open or player.dead:
+	if shop_open or radar_open or dialogue_box.is_open() or player.dead:
 		return
 	var item_id := inventory.get_selected_item_id()
 	var pointer := get_global_mouse_position()
@@ -225,13 +470,13 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 		HOE:
 			var hoe_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, HOE)
 			if world.till(hoe_cell):
-				_show_toast("Tilled the ground.")
+				_show_toast(_msg("Tilled the ground.", "土地已翻耕。"))
 			else:
-				_show_toast("The hoe needs a nearby grass tile in front of you.")
+				_show_toast(_msg("The hoe needs a nearby grass tile in front of you.", "锄头需要对准前方附近的草地。"))
 		GREEN_SEED:
 			var seed_cell := world.get_pointer_cell(pointer, player.global_position, player.facing, GREEN_SEED)
 			if seed_cell.x < 0 or inventory.get_selected_count() <= 0:
-				_show_toast("Seeds need an adjacent tilled tile in front of you.")
+				_show_toast(_msg("Seeds need an adjacent tilled tile in front of you.", "种子需要种在前方相邻的翻耕土地上。"))
 				return
 			if not world.plant_seed(seed_cell):
 				return
@@ -247,9 +492,21 @@ func _on_fire_requested(origin: Vector2, direction: Vector2) -> void:
 				world.set_farm_tilled(seed_cell)
 				plant.queue_free()
 				return
-			_show_toast("Seed planted. It becomes a hunter in 3 seconds.")
+			_show_toast(_msg("Seed planted. It becomes a hunter in 3 seconds.", "种子已种下，3 秒后会变成追击者。"))
+		BLUE_SEED:
+			var water_cell := world.get_water_pointer_cell(pointer, player.global_position, player.facing)
+			if water_cell.x < 0 or not world.plant_blue_seed(water_cell):
+				_show_toast(_msg("Blue seeds must be planted in a free pond tile beside you.", "蓝色种子必须种在身边空闲的池塘水格里。"))
+				return
+			if not inventory.consume_selected():
+				world.clear_water_growth(water_cell)
+				return
+			_begin_water_growth(water_cell)
+			_show_toast(_msg("The pond begins to stir.", "池塘开始涌动。"))
 		YELLOW_BALL:
-				_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK, 1, player, Color("#f3c969"))
+			_spawn_projectile(origin + direction * 14.0, direction, WORLD_MASK | PLANT_MASK | MONSTER_MASK, 1, player, Color("#f3c969"))
+		MELEE_WEAPON:
+			melee_weapon.try_swing(direction)
 
 func _spawn_projectile(origin: Vector2, direction: Vector2, target_mask: int, damage: int, source: Node, tint: Color) -> void:
 	var projectile := MeadowProjectile.new()
@@ -265,16 +522,132 @@ func _on_plant_died(cell: Vector2i, position: Vector2) -> void:
 	plant_entities.erase(cell)
 	world.clear_farm(cell)
 	world.add_drop(position, PLANT, 1, 0)
-	_show_toast("The plant fell. Pick it up and sell it at the shop.")
+	_show_toast(_msg("The plant fell. Pick it up and sell it at the shop.", "植物倒下了，拾取后可以带到商店出售。"))
+
+func _begin_water_growth(root: Vector2i) -> void:
+	quest_state = QUEST_WATER_GROWING
+	water_root = root
+	water_growth_elapsed = 0.0
+	water_spread_elapsed = 0.0
+	water_spread_cells = world.get_water_growth_ring(root)
+	water_spread_index = 0
+	water_emerge_elapsed = 0.0
+
+func _update_water_encounter(delta: float) -> void:
+	if quest_state != QUEST_WATER_GROWING:
+		return
+	if water_growth_elapsed < WATER_GROW_TIME:
+		water_growth_elapsed += delta
+		if water_growth_elapsed >= WATER_GROW_TIME:
+			world.set_water_growth_state(water_root, 1)
+		return
+	if water_spread_index < water_spread_cells.size():
+		water_spread_elapsed += delta
+		if water_spread_elapsed >= WATER_SPREAD_INTERVAL:
+			water_spread_elapsed = 0.0
+			world.add_water_growth_cell(water_spread_cells[water_spread_index], water_root, water_spread_index + 1)
+			water_spread_index += 1
+		return
+	water_emerge_elapsed += delta
+	if water_emerge_elapsed < WATER_EMERGE_DELAY:
+		return
+	_spawn_lake_monster()
+
+func _spawn_lake_monster() -> void:
+	if is_instance_valid(lake_monster):
+		return
+	quest_state = QUEST_MONSTER_ACTIVE
+	var monster := MeadowLakeMonster.new()
+	plants.add_child(monster)
+	monster.setup(player, world, world.get_water_growth_center(water_root))
+	monster.died.connect(_on_lake_monster_died)
+	monster.stunned.connect(_on_lake_monster_stunned)
+	lake_monster = monster
+	_show_toast(_msg("The lake monster has awakened!", "湖中怪物苏醒了！"))
+
+func _on_lake_monster_stunned() -> void:
+	_show_toast(_msg("The monster is stunned for 3 seconds.", "怪物眩晕 3 秒。"))
+
+func _on_lake_monster_died(position: Vector2) -> void:
+	if quest_state != QUEST_MONSTER_ACTIVE:
+		return
+	lake_monster = null
+	world.clear_water_growth(water_root)
+	water_root = Vector2i(-1, -1)
+	quest_state = QUEST_DEFEATED
+	world.add_drop(position, QUEST_ITEM_1, 1, 0)
+	_show_toast(_msg("The monster dropped a quest relic.", "怪物掉落了任务道具 1。"))
+
+func _reset_lake_encounter_on_player_death() -> void:
+	if quest_state != QUEST_WATER_GROWING and quest_state != QUEST_MONSTER_ACTIVE:
+		return
+	if is_instance_valid(lake_monster):
+		lake_monster.dead = true
+		lake_monster.queue_free()
+	lake_monster = null
+	if water_root.x >= 0:
+		world.clear_water_growth(water_root)
+	water_root = Vector2i(-1, -1)
+	water_growth_elapsed = 0.0
+	water_spread_elapsed = 0.0
+	water_spread_cells.clear()
+	water_spread_index = 0
+	water_emerge_elapsed = 0.0
+	quest_state = QUEST_AWAITING_PLANT
 
 func _on_health_changed(current: int, maximum: int) -> void:
-	health_label.text = "HP  %d/%d" % [current, maximum]
+	health_label.text = _msg("HP  %d/%d" % [current, maximum], "生命 %d/%d" % [current, maximum])
 
 func _on_player_died() -> void:
-	_show_toast("You ran out of health.")
+	_reset_lake_encounter_on_player_death()
+	melee_weapon.cancel_swing()
+	_respawn_triggered_for_death = false
+	_reset_respawn_hold()
+	_close_shop()
+	if dialogue_box.is_open():
+		dialogue_box.close_dialogue()
+	prompt_box.hide()
+	_last_prompt = ""
+	if is_instance_valid(_toast_tween):
+		_toast_tween.kill()
+	toast_box.hide()
+	death_overlay.show()
+
+func _update_respawn_hold(delta: float) -> void:
+	if _respawn_triggered_for_death:
+		return
+	if not Input.is_action_pressed("respawn"):
+		_reset_respawn_hold()
+		return
+	_respawn_hold_elapsed = minf(_respawn_hold_elapsed + delta, RESPAWN_HOLD_SECONDS)
+	respawn_progress.value = _respawn_hold_elapsed
+	if _respawn_hold_elapsed >= RESPAWN_HOLD_SECONDS:
+		_respawn_triggered_for_death = true
+		_respawn_player()
+
+func _reset_respawn_hold() -> void:
+	_respawn_hold_elapsed = 0.0
+	respawn_progress.value = 0.0
+
+func _respawn_player() -> void:
+	melee_weapon.cancel_swing()
+	var spawn_global_position := world.to_global(world.cell_to_world(world.PLAYER_START_CELL))
+	if not player.respawn_at(spawn_global_position):
+		_respawn_triggered_for_death = false
+		return
+	_reset_respawn_hold()
+	death_overlay.hide()
+	shop_open = false
+	_clear_inventory_sell_tooltip()
+	shop_panel.clear_hover()
+	shop_panel.hide()
+	prompt_box.hide()
+	_last_prompt = ""
+	camera.reset_smoothing()
+	_show_toast(_msg("You returned to the meadow.", "你回到了草甸。"))
 
 func _refresh_coins() -> void:
-	coin_label.text = "COINS  %d" % coins
+	coin_label.text = _msg("COINS  %d" % coins, "金币  %d" % coins)
 
 func _refresh_inventory(_selected_slot: int = -1) -> void:
 	inventory_hud.queue_redraw()

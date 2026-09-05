@@ -1,16 +1,63 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="3_player"]
+[ext_resource type="Script" path="res://scripts/melee_weapon.gd" id="9_melee_weapon"]
 [ext_resource type="Script" path="res://scripts/shop.gd" id="4_shop"]
 [ext_resource type="Script" path="res://scripts/crosshair.gd" id="5_crosshair"]
 [ext_resource type="Script" path="res://scripts/inventory.gd" id="6_inventory"]
 [ext_resource type="Script" path="res://scripts/inventory_hud.gd" id="7_inventory_hud"]
 [ext_resource type="Script" path="res://scripts/shop_panel.gd" id="8_shop_panel"]
+[ext_resource type="Script" path="res://scripts/radar_panel.gd" id="9_radar_panel"]
+[ext_resource type="Script" path="res://scripts/travel_transition.gd" id="10_travel_transition"]
+[ext_resource type="Script" path="res://scripts/dialogue_box.gd" id="11_dialogue_box"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 9.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_respawn_background"]
+bg_color = Color(0.027, 0.059, 0.071, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.25, 0.27, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_respawn_fill"]
+bg_color = Color(0.96, 0.82, 0.47, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_radar_point"]
+bg_color = Color(0.24, 0.58, 0.48, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.86, 0.94, 0.72, 0.9)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_radar_hover"]
+bg_color = Color(0.95, 0.72, 0.32, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.98, 0.9, 0.62, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -25,12 +72,16 @@ script = ExtResource("4_shop")
 [node name="Player" type="CharacterBody2D" parent="."]
 z_index = 10
 collision_layer = 2
-collision_mask = 1
+collision_mask = 9
 motion_mode = 1
 script = ExtResource("3_player")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
 shape = SubResource("CircleShape2D_player")
+
+[node name="MeleeWeapon" type="Node2D" parent="Player"]
+z_index = 1
+script = ExtResource("9_melee_weapon")
 
 [node name="Camera2D" type="Camera2D" parent="Player"]
 position_smoothing_enabled = true
@@ -125,6 +176,7 @@ theme_override_font_sizes/font_size = 15
 text = "E  Interact"
 
 [node name="ToastBox" type="ColorRect" parent="HUD"]
+z_index = 20
 offset_left = 260.0
 offset_top = -142.0
 offset_right = 700.0
@@ -145,6 +197,21 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("7_inventory_hud")
 
+[node name="InventorySellTooltip" type="Label" parent="HUD"]
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 180.0
+offset_bottom = 44.0
+mouse_filter = 2
+visible = false
+theme_override_colors/font_color = Color(0.98, 0.86, 0.57, 1)
+theme_override_colors/font_outline_color = Color(0.055, 0.11, 0.13, 0.98)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 13
+text = "SELL PRICE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="ShopPanel" type="Control" parent="HUD"]
 offset_left = 300.0
 offset_top = 132.0
@@ -164,36 +231,23 @@ theme_override_font_sizes/font_size = 21
 text = "WOODLAND SHOP"
 horizontal_alignment = 1
 
-[node name="ItemIconHitbox" type="Control" parent="HUD/ShopPanel"]
-offset_left = 148.0
-offset_top = 40.0
-offset_right = 212.0
-offset_bottom = 104.0
-mouse_filter = 0
-mouse_default_cursor_shape = 2
+[node name="ProductHitboxes" type="Control" parent="HUD/ShopPanel"]
+offset_right = 360.0
+offset_bottom = 276.0
+mouse_filter = 2
 
 [node name="HoverDetails" type="Label" parent="HUD/ShopPanel"]
 offset_left = 24.0
-offset_top = 110.0
+offset_top = 170.0
 offset_right = 336.0
-offset_bottom = 166.0
+offset_bottom = 238.0
 mouse_filter = 2
 visible = false
+autowrap_mode = 2
 theme_override_colors/font_color = Color(1, 0.96, 0.78, 1)
 theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 vertical_alignment = 1
-
-[node name="Price" type="Label" parent="HUD/ShopPanel"]
-offset_left = 210.0
-offset_top = 178.0
-offset_right = 336.0
-offset_bottom = 202.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
-theme_override_font_sizes/font_size = 16
-text = "50 COINS"
-horizontal_alignment = 2
 
 [node name="CloseButton" type="Button" parent="HUD/ShopPanel"]
 offset_left = 320.0
@@ -219,6 +273,203 @@ theme_override_font_sizes/font_size = 14
 text = "Explore the meadow."
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="DialogueBox" type="Control" parent="HUD"]
+visible = false
+z_index = 50
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("11_dialogue_box")
+
+[node name="Panel" type="ColorRect" parent="HUD/DialogueBox"]
+layout_mode = 1
+anchors_preset = 12
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -330.0
+offset_top = 330.0
+offset_right = 330.0
+offset_bottom = 505.0
+grow_horizontal = 2
+color = Color(0.055, 0.11, 0.13, 0.97)
+
+[node name="Speaker" type="Label" parent="HUD/DialogueBox/Panel"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 636.0
+offset_bottom = 44.0
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 18
+text = "湖之守望者"
+
+[node name="Body" type="Label" parent="HUD/DialogueBox/Panel"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 54.0
+offset_right = 636.0
+offset_bottom = 112.0
+theme_override_colors/font_color = Color(0.88, 0.93, 0.81, 1)
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 2
+
+[node name="Hint" type="Label" parent="HUD/DialogueBox/Panel"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 133.0
+offset_right = 636.0
+offset_bottom = 161.0
+theme_override_colors/font_color = Color(0.64, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "E  继续|E  关闭"
+horizontal_alignment = 2
+
+[node name="DeathOverlay" type="ColorRect" parent="HUD"]
+visible = false
+z_index = 100
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.016, 0.035, 0.043, 0.76)
+
+[node name="DeathCard" type="ColorRect" parent="HUD/DeathOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -92.0
+offset_right = 220.0
+offset_bottom = 92.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.055, 0.11, 0.13, 0.97)
+
+[node name="DeathTitle" type="Label" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 22.0
+offset_right = 416.0
+offset_bottom = 54.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_font_sizes/font_size = 24
+text = "YOU FAINTED"
+horizontal_alignment = 1
+
+[node name="RespawnInstruction" type="Label" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 66.0
+offset_right = 416.0
+offset_bottom = 91.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.81, 1)
+theme_override_font_sizes/font_size = 15
+text = "Hold SPACE for 2 seconds to return"
+horizontal_alignment = 1
+
+[node name="RespawnProgress" type="ProgressBar" parent="HUD/DeathOverlay/DeathCard"]
+layout_mode = 0
+offset_left = 48.0
+offset_top = 112.0
+offset_right = 392.0
+offset_bottom = 138.0
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_respawn_background")
+theme_override_styles/fill = SubResource("StyleBoxFlat_respawn_fill")
+max_value = 2.0
+step = 0.001
+show_percentage = false
+
+[node name="RadarPanel" type="Control" parent="HUD"]
+offset_left = 270.0
+offset_top = 90.0
+offset_right = 690.0
+offset_bottom = 450.0
+mouse_filter = 1
+script = ExtResource("9_radar_panel")
+
+[node name="Title" type="Label" parent="HUD/RadarPanel"]
+offset_left = 24.0
+offset_top = 17.0
+offset_right = 396.0
+offset_bottom = 47.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.86, 0.57, 1)
+theme_override_font_sizes/font_size = 21
+text = "NAVIGATION RADAR"
+horizontal_alignment = 1
+
+[node name="MeadowPoint" type="Button" parent="HUD/RadarPanel"]
+offset_left = 162.0
+offset_top = 163.0
+offset_right = 182.0
+offset_bottom = 183.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_radar_point")
+theme_override_styles/hover = SubResource("StyleBox_radar_hover")
+theme_override_styles/focus = SubResource("StyleBox_radar_hover")
+
+[node name="PondPoint" type="Button" parent="HUD/RadarPanel"]
+offset_left = 280.0
+offset_top = 245.0
+offset_right = 300.0
+offset_bottom = 265.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_radar_point")
+theme_override_styles/hover = SubResource("StyleBox_radar_hover")
+theme_override_styles/focus = SubResource("StyleBox_radar_hover")
+
+[node name="TreePoint" type="Button" parent="HUD/RadarPanel"]
+offset_left = 308.0
+offset_top = 160.0
+offset_right = 328.0
+offset_bottom = 180.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.08, 0.1, 0.09, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_radar_point")
+theme_override_styles/hover = SubResource("StyleBox_radar_hover")
+theme_override_styles/focus = SubResource("StyleBox_radar_hover")
+
+[node name="CloseButton" type="Button" parent="HUD/RadarPanel"]
+offset_left = 366.0
+offset_top = 12.0
+offset_right = 404.0
+offset_bottom = 48.0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
+theme_override_colors/font_hover_color = Color(1, 0.96, 0.72, 1)
+theme_override_font_sizes/font_size = 20
+text = "X"
+
+[node name="TravelTransition" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+z_index = 200
+mouse_filter = 2
+script = ExtResource("10_travel_transition")
 
 [node name="CursorLayer" type="CanvasLayer" parent="."]
 layer = 20

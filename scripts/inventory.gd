@@ -15,7 +15,9 @@ const ITEM_DEFINITIONS := {
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "hoe",
-		"sell_price": 0,
+		"sell_price": 2,
+		"buy_price": 5,
+		"description": "Tills nearby grass into plantable soil.",
 	},
 	"green_seed": {
 		"name": "Green Seed",
@@ -24,7 +26,9 @@ const ITEM_DEFINITIONS := {
 		"show_count": true,
 		"max_stack": MAX_STACK,
 		"icon": "green_seed",
-		"sell_price": 0,
+		"sell_price": 2,
+		"buy_price": 5,
+		"description": "Plant it on tilled soil to grow a meadow plant.",
 	},
 	"yellow_ball": {
 		"name": "Yellow Ball",
@@ -33,7 +37,42 @@ const ITEM_DEFINITIONS := {
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "yellow_ball",
+		"sell_price": 25,
+		"buy_price": 50,
+		"description": "Launches a bright projectile through the meadow.",
+	},
+	"melee_weapon": {
+		"name": "Meadow Blade",
+		"consumable": false,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "melee_weapon",
+		"sell_price": 25,
+		"buy_price": 50,
+		"description": "Swings a short yellow blade that lightly knocks back monsters.",
+	},
+	"blue_seed": {
+		"name": "Blue Seed",
+		"consumable": true,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "blue_seed",
 		"sell_price": 0,
+		"buy_price": 0,
+		"description": "Plant it in the pond to awaken something ancient.",
+	},
+	"quest_item_1": {
+		"name": "Quest Relic 1",
+		"consumable": false,
+		"droppable": false,
+		"show_count": false,
+		"max_stack": 1,
+		"icon": "quest_item_1",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "A strange relic left behind by the lake monster.",
 	},
 	"plant": {
 		"name": "Plant",
@@ -43,11 +82,17 @@ const ITEM_DEFINITIONS := {
 		"max_stack": MAX_STACK,
 		"icon": "plant",
 		"sell_price": 50,
+		"buy_price": 0,
+		"description": "A mature plant that can be sold at the shop.",
 	},
 }
 
 var slots: Array[Dictionary] = []
 var selected_slot := 0
+var language := "zh"
+
+func set_language(value: String) -> void:
+	language = "zh" if value == "zh" else "en"
 
 func _ready() -> void:
 	_reset_slots()
@@ -78,13 +123,42 @@ func get_selected_item_id() -> String:
 func get_selected_count() -> int:
 	return int(slots[selected_slot]["count"])
 
+func has_item(item_id: String) -> bool:
+	if item_id.is_empty():
+		return false
+	for slot in slots:
+		if str(slot["id"]) == item_id and int(slot["count"]) > 0:
+			return true
+	return false
+
 func get_item_definition(item_id: String) -> Dictionary:
 	if ITEM_DEFINITIONS.has(item_id):
 		return ITEM_DEFINITIONS[item_id]
 	return {"consumable": true, "droppable": true, "show_count": true, "max_stack": MAX_STACK}
 
 func get_item_name(item_id: String) -> String:
+	if language == "zh":
+		match item_id:
+			"hoe": return "锄头"
+			"green_seed": return "绿种子"
+			"yellow_ball": return "黄色球"
+			"melee_weapon": return "草甸之刃"
+			"plant": return "植物"
+			"blue_seed": return "蓝色种子"
+			"quest_item_1": return "任务道具 1"
 	return str(get_item_definition(item_id).get("name", item_id))
+
+func get_item_description(item_id: String) -> String:
+	if language == "zh":
+		match item_id:
+			"hoe": return "将附近的草地翻耕成可种植的土地。"
+			"green_seed": return "种在翻耕土地上，长成草甸植物。"
+			"yellow_ball": return "向草甸发射明亮的投射物。"
+			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
+			"plant": return "成熟植物，可以在商店出售。"
+			"blue_seed": return "只能种在水里，会唤醒湖中的古老生物。"
+			"quest_item_1": return "湖中怪物留下的任务道具。"
+	return str(get_item_definition(item_id).get("description", ""))
 
 func is_consumable(item_id: String) -> bool:
 	return bool(get_item_definition(item_id).get("consumable", true))
@@ -103,6 +177,9 @@ func get_item_max_stack(item_id: String) -> int:
 
 func get_sell_price(item_id: String) -> int:
 	return int(get_item_definition(item_id).get("sell_price", 0))
+
+func get_buy_price(item_id: String) -> int:
+	return int(get_item_definition(item_id).get("buy_price", 0))
 
 func can_add(item_id: String, amount: int = 1) -> bool:
 	if item_id.is_empty() or amount <= 0:
@@ -160,6 +237,30 @@ func remove_from_slot(index: int, amount: int = 1) -> bool:
 
 func remove_selected(amount: int = 1) -> bool:
 	return remove_from_slot(selected_slot, amount)
+
+func remove_item(item_id: String, amount: int = 1) -> bool:
+	if item_id.is_empty() or amount <= 0:
+		return false
+	var total := 0
+	for slot in slots:
+		if str(slot["id"]) == item_id:
+			total += int(slot["count"])
+	if total < amount:
+		return false
+	var remaining := amount
+	for slot in slots:
+		if str(slot["id"]) != item_id:
+			continue
+		var removed := mini(remaining, int(slot["count"]))
+		slot["count"] = int(slot["count"]) - removed
+		remaining -= removed
+		if int(slot["count"]) <= 0:
+			slot["id"] = ""
+			slot["count"] = 0
+		if remaining <= 0:
+			break
+	inventory_changed.emit()
+	return true
 
 func use_selected(amount: int = 1) -> bool:
 	var item_id := get_selected_item_id()

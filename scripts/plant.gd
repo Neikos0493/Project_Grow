@@ -24,6 +24,7 @@ var dead := false
 var bite_windup_remaining := 0.0
 var bite_cooldown_remaining := 0.0
 var walk_time := 0.0
+var knockback_velocity := Vector2.ZERO
 
 func setup(plant_cell: Vector2i, plant_target: MeadowPlayer) -> void:
 	cell = plant_cell
@@ -43,6 +44,9 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	if knockback_velocity.length_squared() > 0.01:
+		global_position += knockback_velocity * delta
+		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 220.0 * delta)
 	age += delta
 	if not mature:
 		if age >= GROW_TIME:
@@ -83,6 +87,12 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 	queue_redraw()
 
+func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
+	if dead or not mature or direction.length_squared() < 0.01:
+		return
+	knockback_velocity = direction.normalized() * maxf(0.0, strength)
+
+
 func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or amount <= 0:
 		return false
@@ -92,7 +102,9 @@ func take_damage(amount: int = 1) -> bool:
 		return true
 	dead = true
 	velocity = Vector2.ZERO
+	collision_layer = 0
 	died.emit(cell, global_position)
+	queue_free()
 	return true
 
 func _draw() -> void:
