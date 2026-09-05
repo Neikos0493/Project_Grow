@@ -5,6 +5,7 @@ extends StaticBody2D
 signal matured(cell: Vector2i)
 signal ring_attack_requested(origin: Vector2, directions: Array[Vector2])
 signal vine_volley_requested(origins: Array[Vector2], directions: Array[Vector2])
+signal vines_requested(origins: Array[Vector2])
 signal health_changed(current: int, maximum: int)
 signal died(cell: Vector2i, global_position: Vector2)
 
@@ -34,6 +35,7 @@ var ring_pulse_remaining := 0.0
 var skill_windup := 0.0
 var skill_target_direction := Vector2.RIGHT
 var small_vine_origins: Array[Vector2] = []
+var small_vines_spawned := false
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map: MeadowWorld) -> void:
 	cell = plant_cell
@@ -113,18 +115,22 @@ func _start_vine_skill() -> void:
 		global_position + skill_target_direction * 64.0 + side * 46.0,
 		global_position + skill_target_direction * 64.0 - side * 46.0,
 	]
+	if health * 2 < MAX_HEALTH and not small_vines_spawned:
+		small_vines_spawned = true
+		vines_requested.emit(small_vine_origins)
 	skill_windup = SKILL_WINDUP
 	queue_redraw()
 
 func _fire_vine_skill() -> void:
+	var aim := target.global_position - global_position
+	if aim.length_squared() < 0.01:
+		aim = skill_target_direction
+	var center_angle := aim.angle()
 	var directions: Array[Vector2] = []
 	for index in range(VOLLEY_COUNT):
 		var ratio := float(index) / float(VOLLEY_COUNT - 1)
-		directions.append(
-			skill_target_direction.rotated(
-				lerpf(-VOLLEY_HALF_SPREAD, VOLLEY_HALF_SPREAD, ratio)
-			)
-		)
+		var angle := center_angle + lerpf(-VOLLEY_HALF_SPREAD, VOLLEY_HALF_SPREAD, ratio)
+		directions.append(Vector2.RIGHT.rotated(angle))
 	vine_volley_requested.emit(small_vine_origins, directions)
 	small_vine_origins.clear()
 	attacks_done = 0
@@ -227,7 +233,11 @@ func _draw() -> void:
 	for branch in [Vector2(-28, -30), Vector2(28, -27), Vector2(-18, -48), Vector2(20, -50)]:
 		draw_line(Vector2(0, -20), branch, Color("#73513a"), 7.0)
 		draw_circle(branch, 13.0, Color("#658c4c"))
-	draw_circle(Vector2(0, -42), 19.0, Color("#789e52"))
+	draw_circle(Vector2(0, -42), 19.0, Color("#b78f3e") if health * 2 < MAX_HEALTH else Color("#789e52"))
+	if health * 2 < MAX_HEALTH:
+		for index in range(6):
+			var form_angle := TAU * float(index) / 6.0 + age * 1.5
+			draw_circle(Vector2.RIGHT.rotated(form_angle) * 39.0, 3.0, Color("#f3c969"))
 	if ring_duration_remaining > 0.0:
 		var pulse_ratio := ring_duration_remaining / RING_DURATION
 		draw_arc(

@@ -96,6 +96,7 @@ var water_spread_index := 0
 var water_emerge_elapsed := 0.0
 var lake_monster: MeadowLakeMonster
 var saxaul_boss: MeadowSaxaulBoss
+var saxaul_vines: Array[MeadowSaxaulVine] = []
 var saxaul_spread_active := false
 var saxaul_spread_rings: Array = []
 var saxaul_spread_index := 0
@@ -1234,7 +1235,7 @@ func _create_saxaul_boss(
 		tree.restore_state(restored_state)
 	tree.matured.connect(_on_saxaul_matured)
 	tree.ring_attack_requested.connect(_on_saxaul_ring_attack)
-	tree.vine_volley_requested.connect(_on_saxaul_vine_volley)
+	tree.vines_requested.connect(_on_saxaul_vines_requested)
 	tree.health_changed.connect(_on_saxaul_health_changed)
 	tree.died.connect(_on_saxaul_died)
 	saxaul_boss = tree
@@ -1357,21 +1358,36 @@ func _on_saxaul_ring_attack(
 			72.0
 		)
 
-func _on_saxaul_vine_volley(
-	origins: Array[Vector2],
-	directions: Array[Vector2]
-) -> void:
+func _on_saxaul_vines_requested(origins: Array[Vector2]) -> void:
+	if not saxaul_vines.is_empty() or not is_instance_valid(saxaul_boss):
+		return
 	for origin in origins:
-		for direction in directions:
-			_spawn_projectile(
-				origin,
-				direction,
-				WORLD_MASK | PLAYER_MASK,
-				1,
-				saxaul_boss,
-				Color("#c8ef7d"),
-				180.0
-			)
+		var vine := MeadowSaxaulVine.new()
+		plants.add_child(vine)
+		vine.global_position = origin
+		vine.setup(player)
+		vine.laser_requested.connect(_on_saxaul_vine_laser.bind(vine))
+		vine.died.connect(_on_saxaul_vine_died)
+		saxaul_vines.append(vine)
+
+func _on_saxaul_vine_laser(origin: Vector2, directions: Array[Vector2], vine: MeadowSaxaulVine) -> void:
+	if player.dead:
+		return
+	for direction in directions:
+		_spawn_projectile(
+			origin + direction * 12.0,
+			direction,
+			WORLD_MASK | PLAYER_MASK,
+			1,
+			vine,
+			Color("#f3c969"),
+			520.0,
+			72.0
+		)
+
+func _on_saxaul_vine_died(vine: MeadowSaxaulVine) -> void:
+	saxaul_vines.erase(vine)
+	_mark_save_dirty()
 
 func _on_saxaul_health_changed(current: int, maximum: int) -> void:
 	boss_fill.size.x = 620.0 * clampf(
@@ -1382,7 +1398,15 @@ func _on_saxaul_health_changed(current: int, maximum: int) -> void:
 	if is_instance_valid(saxaul_boss):
 		_mark_save_dirty()
 
+func _clear_saxaul_vines() -> void:
+	for vine in saxaul_vines:
+		if is_instance_valid(vine):
+			vine.dead = true
+			vine.queue_free()
+	saxaul_vines.clear()
+
 func _on_saxaul_died(cell: Vector2i, _global_position: Vector2) -> void:
+	_clear_saxaul_vines()
 	boss_bar.hide()
 	_award_boss_energy()
 	if not is_instance_valid(saxaul_boss) or saxaul_boss.dead:
@@ -1730,16 +1754,19 @@ func _clear_runtime_entities() -> void:
 		plant_entities.clear()
 		lake_monster = null
 		saxaul_boss = null
+		saxaul_vines.clear()
 		return
 	for child in plants.get_children():
 		if child is MeadowPursuingPlant \
 		or child is MeadowOrangeCactus \
 		or child is MeadowLakeMonster \
-		or child is MeadowSaxaulBoss:
+		or child is MeadowSaxaulBoss \
+		or child is MeadowSaxaulVine:
 			child.free()
 	plant_entities.clear()
 	lake_monster = null
 	saxaul_boss = null
+	saxaul_vines.clear()
 
 func _restore_map_state(snapshot: Dictionary) -> void:
 	_clear_runtime_entities()
