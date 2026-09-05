@@ -1303,11 +1303,12 @@ func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
 	monster.setup(player, world, world.get_water_growth_center(water_root))
 	monster.died.connect(_on_lake_monster_died)
 	monster.stunned.connect(_on_lake_monster_stunned)
+	monster.seed_volley_requested.connect(_on_lake_monster_seed_volley)
 	monster.health_changed.connect(_on_lake_monster_health_changed)
 	if not restored_state.is_empty():
 		monster.restore_state(restored_state)
 	lake_monster = monster
-	boss_title.text = _msg("LAKE MONSTER", "湖中怪物")
+	boss_title.text = _msg("WATER LILY", "睡莲")
 	_on_lake_monster_health_changed(monster.health, monster.MAX_HEALTH)
 	boss_bar.show()
 	_mark_save_dirty()
@@ -1316,7 +1317,13 @@ func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
 
 func _on_lake_monster_stunned() -> void:
 	_mark_save_dirty()
-	_show_toast(_msg("The monster is stunned for 2.4 seconds.", "怪物眩晕 2.4 秒。"))
+	_show_toast(_msg("The water lily is stunned for 4 seconds.", "睡莲眩晕 4 秒。"))
+
+func _on_lake_monster_seed_volley(origin: Vector2, directions: Array[Vector2]) -> void:
+	if player.dead:
+		return
+	for direction in directions:
+		_spawn_projectile(origin + direction * 36.0, direction, WORLD_MASK | PLAYER_MASK, 1, lake_monster, Color("#f0d987"), 230.0)
 
 func _on_lake_monster_health_changed(current: int, maximum: int) -> void:
 	var ratio := clampf(float(current) / float(maximum), 0.0, 1.0)

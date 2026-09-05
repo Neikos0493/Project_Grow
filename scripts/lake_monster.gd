@@ -1,24 +1,29 @@
 class_name MeadowLakeMonster
 extends CharacterBody2D
-## Procedural lake monster with pursuit, melee, charge, and stun states.
+## Four-tile water-lily boss with fast pursuit, wall-stunning charges, and seed volleys.
 
 signal died(position: Vector2)
 signal stunned
+signal seed_volley_requested(origin: Vector2, directions: Array[Vector2])
 signal health_changed(current: int, maximum: int)
 
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
 const MONSTER_MASK := 16
-const MAX_HEALTH := 12
-const MOVE_SPEED := 70.0
-const CHARGE_SPEED := 410.0
-const ATTACK_RANGE := 30.0
-const ATTACK_WINDUP := 0.2
-const ATTACK_COOLDOWN := 0.4
+const MAX_HEALTH := 16
+const BODY_SIZE := Vector2(64.0, 64.0)
+const MOVE_SPEED := 105.0
+const CHARGE_SPEED := 430.0
+const ATTACK_RANGE := 62.0
+const ATTACK_WINDUP := 0.22
+const ATTACK_COOLDOWN := 0.55
 const CHARGE_WINDUP := 0.35
-const STUN_DURATION := 2.4
+const STUN_DURATION := 4.0
 const MELEE_DAMAGE := 2
-const CHARGE_DAMAGE := 4
+const CHARGE_DAMAGE := 3
+const SEED_VOLLEY_MIN_INTERVAL := 2.2
+const SEED_VOLLEY_MAX_INTERVAL := 3.8
+const SEED_VOLLEY_HALF_ANGLE := deg_to_rad(60.0)
 
 var entity_id := ""
 var target: MeadowPlayer
@@ -27,11 +32,12 @@ var health := MAX_HEALTH
 var state := "emerging"
 var state_elapsed := 0.0
 var attacks_done := 0
-var attacks_before_charge := 1
-var charge_endpoint := Vector2.ZERO
+var attacks_before_charge := 2
 var charge_direction := Vector2.RIGHT
+var charge_endpoint := Vector2.ZERO
 var charge_hit_player := false
 var attack_hit_resolved := false
+var seed_volley_timer := 3.0
 var dead := false
 var facing := Vector2.LEFT
 
@@ -39,7 +45,7 @@ func setup(new_target: MeadowPlayer, new_world: MeadowWorld, spawn_map_position:
 	target = new_target
 	world = new_world
 	global_position = world.to_global(spawn_map_position)
-	attacks_before_charge = randi_range(1, 2)
+	seed_volley_timer = randf_range(SEED_VOLLEY_MIN_INTERVAL, SEED_VOLLEY_MAX_INTERVAL)
 	queue_redraw()
 
 func capture_state() -> Dictionary:
@@ -95,9 +101,9 @@ func _ready() -> void:
 	collision_layer = MONSTER_MASK
 	collision_mask = WORLD_MASK
 	var shape_node := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = 14.0
-	shape_node.shape = circle
+	var rectangle := RectangleShape2D.new()
+	rectangle.size = BODY_SIZE
+	shape_node.shape = rectangle
 	add_child(shape_node)
 	queue_redraw()
 
@@ -106,15 +112,16 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 	state_elapsed += delta
+	_update_seed_volley(delta)
 	match state:
 		"emerging":
 			velocity = Vector2.ZERO
-			if state_elapsed >= 0.65:
+			if state_elapsed >= 0.8:
 				_change_state("chase")
 		"chase":
 			_chase()
 		"attack":
-			_attack(delta)
+			_attack()
 		"charge_windup":
 			velocity = Vector2.ZERO
 			if state_elapsed >= CHARGE_WINDUP:
@@ -137,15 +144,18 @@ func _change_state(next_state: String) -> void:
 func _chase() -> void:
 	var offset := target.global_position - global_position
 	if offset.length_squared() < 0.01:
+		velocity = Vector2.ZERO
 		return
 	facing = offset.normalized()
 	if offset.length() <= ATTACK_RANGE:
+		velocity = Vector2.ZERO
 		_change_state("attack")
 		return
 	velocity = facing * MOVE_SPEED
 	move_and_slide()
 
-func _attack(_delta: float) -> void:
+func _attack() -> void:
+	velocity = Vector2.ZERO
 	var offset := target.global_position - global_position
 	if offset.length_squared() > 0.01:
 		facing = offset.normalized()
@@ -171,7 +181,6 @@ func _begin_charge() -> void:
 	var trigger_cell := world.world_to_cell(world.to_local(target.global_position))
 	var endpoint_step := Vector2i(roundi(map_charge_direction.x), roundi(map_charge_direction.y)) * 2
 	var endpoint_cell := trigger_cell + endpoint_step
-	# Keep the planned endpoint inside the playable map; obstacles can still stop it earlier.
 	endpoint_cell.x = clampi(endpoint_cell.x, 1, world.MAP_SIZE.x - 2)
 	endpoint_cell.y = clampi(endpoint_cell.y, 1, world.MAP_SIZE.y - 2)
 	charge_endpoint = world.to_global(world.cell_to_world(endpoint_cell))
@@ -186,44 +195,56 @@ func _grid_direction(direction: Vector2) -> Vector2:
 
 func _charge(delta: float) -> void:
 	var from := global_position
-	var step := charge_direction * CHARGE_SPEED * delta
-	var reached_endpoint := from.distance_to(charge_endpoint) <= step.length()
-	var to := charge_endpoint if reached_endpoint else from + step
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsRayQueryParameters2D.create(from, to)
-	query.collision_mask = WORLD_MASK
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	query.exclude = [get_rid()]
-	var obstacle := space.intersect_ray(query)
-	if not obstacle.is_empty():
-		global_position = obstacle["position"] - charge_direction * 4.0
-		_enter_stun()
-		return
+	var collision := move_and_collide(charge_direction * CHARGE_SPEED * delta)
+	var to := global_position
 	if not charge_hit_player:
 		var player_query := PhysicsRayQueryParameters2D.create(from, to)
 		player_query.collision_mask = PLAYER_MASK
 		player_query.collide_with_areas = false
 		player_query.collide_with_bodies = true
 		player_query.exclude = [get_rid()]
-		var player_hit := space.intersect_ray(player_query)
+		var player_hit := get_world_2d().direct_space_state.intersect_ray(player_query)
 		if not player_hit.is_empty():
 			charge_hit_player = true
 			target.take_damage(CHARGE_DAMAGE)
-	global_position = to
-	if reached_endpoint or world.world_to_cell(world.to_local(global_position)) == world.world_to_cell(world.to_local(charge_endpoint)):
-		global_position = charge_endpoint
-		attacks_done = 0
-		_change_state("chase")
+	if collision != null:
+		_enter_stun()
 
 func _enter_stun() -> void:
 	_change_state("stunned")
 	stunned.emit()
 
-func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
-	if dead or state == "charging" or state == "stunned":
+func _update_seed_volley(delta: float) -> void:
+	if health * 2 >= MAX_HEALTH or state in ["emerging", "charging", "stunned"]:
 		return
-	global_position += direction.normalized() * strength * 0.12
+	seed_volley_timer -= delta
+	if seed_volley_timer > 0.0:
+		return
+	seed_volley_timer = randf_range(SEED_VOLLEY_MIN_INTERVAL, SEED_VOLLEY_MAX_INTERVAL)
+	_fire_seed_volley_layers()
+
+func _fire_seed_volley_layers() -> void:
+	for layer in range(3):
+		if dead or not is_instance_valid(target) or target.dead:
+			return
+		var aim := target.global_position - global_position
+		if aim.length_squared() < 0.01:
+			aim = facing
+		var center_angle := aim.angle() + randf_range(deg_to_rad(-12.0), deg_to_rad(12.0))
+		var projectile_count := randi_range(5, 7)
+		var directions: Array[Vector2] = []
+		for index in range(projectile_count):
+			var ratio := float(index) / float(projectile_count - 1)
+			var angle := center_angle + lerpf(-SEED_VOLLEY_HALF_ANGLE, SEED_VOLLEY_HALF_ANGLE, ratio)
+			directions.append(Vector2.RIGHT.rotated(angle))
+		seed_volley_requested.emit(global_position, directions)
+		if layer < 2:
+			await get_tree().create_timer(0.2).timeout
+
+func apply_knockback(direction: Vector2, strength: float = 52.0) -> void:
+	if dead or state in ["charging", "stunned"] or direction.length_squared() < 0.01:
+		return
+	global_position += direction.normalized() * strength * 0.05
 
 func take_damage(amount: int = 1) -> bool:
 	if dead or amount <= 0:
@@ -236,20 +257,28 @@ func take_damage(amount: int = 1) -> bool:
 		velocity = Vector2.ZERO
 		died.emit(global_position)
 		queue_free()
-		return true
 	return true
 
 func _draw() -> void:
-	var pulse := 1.0 + 0.08 * sin(state_elapsed * 8.0)
-	var radius := 15.0 * pulse if state != "emerging" else 10.0 + state_elapsed * 8.0
-	draw_circle(Vector2(0, 6), radius + 3.0, Color(0.05, 0.1, 0.1, 0.3))
-	draw_circle(Vector2.ZERO, radius, Color("#365c78") if state != "stunned" else Color("#777c68"))
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, Color("#b7e7de"), 2.0)
-	draw_circle(Vector2(-5, -3), 3.0, Color("#f2d16f"))
-	draw_circle(Vector2(5, -3), 3.0, Color("#f2d16f"))
-	draw_circle(Vector2(-5, -3), 1.0, Color("#26353b"))
-	draw_circle(Vector2(5, -3), 1.0, Color("#26353b"))
-	if state == "charging":
-		draw_line(-facing * 22.0, -facing * 34.0, Color("#d66b58"), 4.0)
+	var emergence := clampf(state_elapsed / 0.8, 0.0, 1.0) if state == "emerging" else 1.0
+	var petal_color := Color("#79a9bd") if state != "stunned" else Color("#969b83")
+	draw_circle(Vector2(0, 16), 37.0 * emergence, Color(0.05, 0.1, 0.1, 0.32))
+	for index in range(8):
+		var angle := TAU * float(index) / 8.0
+		var petal_center := Vector2.RIGHT.rotated(angle) * 22.0 * emergence
+		draw_circle(petal_center, 18.0 * emergence, petal_color)
+		draw_arc(petal_center, 18.0 * emergence, 0.0, TAU, 18, Color("#c4ece1"), 2.0)
+	draw_circle(Vector2.ZERO, 22.0 * emergence, Color("#365c78") if state != "stunned" else Color("#777c68"))
+	draw_circle(Vector2.ZERO, 10.0 * emergence, Color("#e2c965"))
+	draw_circle(Vector2(-7, -3), 2.5, Color("#26353b"))
+	draw_circle(Vector2(7, -3), 2.5, Color("#26353b"))
+	if state == "charge_windup":
+		draw_arc(Vector2.ZERO, 43.0, facing.angle() - 0.35, facing.angle() + 0.35, 10, Color("#ef8b6d"), 5.0)
+	elif state == "charging":
+		draw_line(-facing * 36.0, -facing * 62.0, Color("#d66b58"), 8.0)
 	elif state == "stunned":
-		draw_arc(Vector2.ZERO, radius + 7.0, 0.0, TAU, 18, Color("#f3c969"), 2.0)
+		draw_arc(Vector2.ZERO, 43.0, 0.0, TAU, 24, Color("#f3c969"), 3.0)
+	if health * 2 < MAX_HEALTH and not dead:
+		for index in range(5):
+			var angle := TAU * float(index) / 5.0 + state_elapsed
+			draw_circle(Vector2.RIGHT.rotated(angle) * 48.0, 3.0, Color("#f0d987"))
