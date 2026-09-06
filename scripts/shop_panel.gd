@@ -71,7 +71,6 @@ func _visible_product_ids() -> Array[String]:
 	if beach_shop:
 		ids.append("hoe")
 		ids.append("orange_seed")
-		ids.append("sunglasses")
 	return ids
 
 func _rebuild_product_hitboxes() -> void:

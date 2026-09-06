@@ -48,7 +48,7 @@ const ITEM_DEFINITIONS := {
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "sunglasses",
-		"sell_price": 0,
+		"sell_price": 100,
 		"buy_price": 25,
 		"description": "A pair of shades for the desert sun.",
 	},
