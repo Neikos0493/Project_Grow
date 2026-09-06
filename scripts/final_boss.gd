@@ -22,6 +22,8 @@ const ATTACK_RANGE := 150.0 * MeadowWorld.TILE_SIZE
 const FALL_GRACE := 1.25
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 const FINAL_BOSS_TEXTURE := preload("res://assets/Hu1.png")
 
 var target: MeadowPlayer
@@ -38,6 +40,8 @@ var current_phase := 1
 var phase_two_summoned := false
 var phase_three_summoned := false
 var visual_sprite: Sprite2D
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func setup(new_target: MeadowPlayer, new_world: MeadowWorld) -> void:
 	target = new_target
@@ -71,6 +75,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead or not active:
 		return
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if is_instance_valid(visual_sprite):
 		visual_sprite.frame = int(Time.get_ticks_msec() / 125) % 5
 	if fall_grace_remaining > 0.0:
@@ -136,6 +146,8 @@ func take_damage(amount: int) -> bool:
 	if dead or not active or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
 	if health <= 0:

@@ -15,6 +15,8 @@ const CHARACTER_FRAME_COUNT := 4
 const CHARACTER_ANIMATION_FPS := 8.0
 const OUT_OF_COMBAT_DELAY := 1.0
 const HIT_SOUND := preload("res://sound/角色受击音效.mp3")
+const INVINCIBILITY_DURATION := 1.0
+const HIT_FLASH_INTERVAL := 0.1
 
 const CHARACTER_SHEETS := {
 	"idle_down": ["res://image/Character/character-wait-Sheet.png", 22, 31],
@@ -34,6 +36,8 @@ var facing := Vector2.DOWN
 var health := MAX_HEALTH
 var dead := false
 var time_since_damage := OUT_OF_COMBAT_DELAY
+var invincibility_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
@@ -47,6 +51,12 @@ func _ready() -> void:
 	health_changed.emit(health, MAX_HEALTH)
 
 func _physics_process(delta: float) -> void:
+	if invincibility_remaining > 0.0:
+		invincibility_remaining = maxf(0.0, invincibility_remaining - delta)
+		hit_flash_elapsed += delta
+		modulate = Color(1.0, 1.0, 1.0, 0.35) if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if not dead:
 		time_since_damage += delta
 	if controls_locked or dead:
@@ -133,6 +143,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			fire_requested.emit(global_position, aim.normalized())
 
 func restore_state(saved_health: int) -> void:
+	invincibility_remaining = 0.0
+	hit_flash_elapsed = 0.0
+	modulate = Color.WHITE
 	health = clampi(saved_health, 0, MAX_HEALTH)
 	time_since_damage = OUT_OF_COMBAT_DELAY
 	dead = health == 0
@@ -143,8 +156,10 @@ func restore_state(saved_health: int) -> void:
 	queue_redraw()
 
 func take_damage(amount: int = 1) -> bool:
-	if dead or amount <= 0:
+	if dead or invincibility_remaining > 0.0 or amount <= 0:
 		return false
+	invincibility_remaining = INVINCIBILITY_DURATION
+	hit_flash_elapsed = 0.0
 	time_since_damage = 0.0
 	health = maxi(0, health - amount)
 	if is_instance_valid(hit_sound_player):
@@ -175,6 +190,9 @@ func is_out_of_combat() -> bool:
 func respawn_at(spawn_global_position: Vector2) -> bool:
 	if not dead:
 		return false
+	invincibility_remaining = 0.0
+	hit_flash_elapsed = 0.0
+	modulate = Color.WHITE
 	global_position = spawn_global_position
 	velocity = Vector2.ZERO
 	health = MAX_HEALTH

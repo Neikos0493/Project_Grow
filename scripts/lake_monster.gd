@@ -39,6 +39,8 @@ const RUSH_WINDUP_DURATION := 1.0
 const RUSH_END_DURATION := 0.12
 const DEATH_FPS := 12.0
 const DEATH_FRAME_COUNT := 16
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 
 const WATERLILY_WAIT := preload("res://image/waterlily/waterlily-change-wait-Sheet.png")
 const WATERLILY_ATTACK := preload("res://image/waterlily/waterlily-change-attack-Sheet.png")
@@ -65,6 +67,8 @@ var rush_should_stun := false
 var dead := false
 var facing := Vector2.LEFT
 var faces_left := true
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 var visual_sprite: Sprite2D
 var warning_label: Label
@@ -214,6 +218,12 @@ func _ready() -> void:
 	_update_visual()
 
 func _physics_process(delta: float) -> void:
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if dead:
 		state_elapsed += delta
 		_update_warning(delta)
@@ -472,6 +482,8 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	health_changed.emit(health, MAX_HEALTH)
 	if health == 0:
 		dead = true

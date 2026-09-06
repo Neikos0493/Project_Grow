@@ -11,12 +11,16 @@ const MAX_HEALTH := 3
 const FIRE_INTERVAL := 0.75
 const LASER_SPEED := 520.0
 const LASER_LENGTH := 72.0
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 
 var target: MeadowPlayer
 var health := MAX_HEALTH
 var fire_timer := 0.35
 var dead := false
 var phase := 0.0
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func setup(player_target: MeadowPlayer) -> void:
 	target = player_target
@@ -33,6 +37,12 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if dead:
 		return
 	phase += delta
@@ -59,6 +69,8 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	queue_redraw()
 	if health == 0:
 		dead = true

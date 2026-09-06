@@ -26,6 +26,8 @@ const JUMP_HEIGHT := 34.0
 const HIT_RANGE := 28.0
 const JUMP_DAMAGE := 1
 const JUMP_COOLDOWN := 1.1
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 
 var entity_id := ""
 var cell := Vector2i.ZERO
@@ -43,6 +45,8 @@ var jump_target := Vector2.ZERO
 var jump_faces_right := false
 var knockback_velocity := Vector2.ZERO
 var spawn_grace_remaining := 0.0
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map_world: MeadowWorld) -> void:
 	cell = plant_cell
@@ -116,6 +120,12 @@ func _get_collision_radius() -> float:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if not mature:
 		age += delta
 		if age >= GROW_TIME:
@@ -181,6 +191,8 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	queue_redraw()
 	if health > 0:
 		return true

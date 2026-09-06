@@ -20,6 +20,8 @@ const RING_PULSE_INTERVAL := 0.15
 const SKILL_WINDUP := 0.65
 const VOLLEY_COUNT := 4
 const VOLLEY_HALF_SPREAD := deg_to_rad(30.0)
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 
 var entity_id := ""
 var cell := Vector2i.ZERO
@@ -38,6 +40,8 @@ var skill_target_direction := Vector2.RIGHT
 var small_vine_origins: Array[Vector2] = []
 var spawn_grace_remaining := 0.0
 var small_vines_spawned := false
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map: MeadowWorld) -> void:
 	cell = plant_cell
@@ -56,6 +60,12 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
 	if dead:
 		return
 	if not mature:
@@ -155,6 +165,8 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
 	if health > 0:

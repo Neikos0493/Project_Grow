@@ -16,6 +16,9 @@ const VOLLEY_COOLDOWN := 1.6
 const VOLLEY_COUNT := 3
 const LEAF_FAN_SPREAD := deg_to_rad(30.0)
 const LEAF_FAN_OFFSET := deg_to_rad(35.0)
+const CACTUS_WAIT_TEXTURE := preload("res://assets/cactus-wait-Sheet.png")
+const HIT_FLASH_DURATION := 0.18
+const HIT_FLASH_INTERVAL := 0.06
 
 var entity_id := ""
 var cell := Vector2i.ZERO
@@ -31,6 +34,9 @@ var facing := Vector2.RIGHT
 var wander_direction := Vector2.ZERO
 var leaf_wave := 0.0
 var spawn_grace_remaining := 0.0
+var visual_sprite: Sprite2D
+var hit_flash_remaining := 0.0
+var hit_flash_elapsed := 0.0
 
 func setup(plant_cell: Vector2i, player_target: MeadowPlayer, map_world: MeadowWorld) -> void:
 	cell = plant_cell
@@ -105,6 +111,13 @@ func _data_to_direction(value: Variant, fallback: Vector2, allow_zero: bool) -> 
 func _ready() -> void:
 	collision_layer = 4
 	collision_mask = 1
+	visual_sprite = Sprite2D.new()
+	visual_sprite.name = "CactusWaitSprite"
+	visual_sprite.texture = CACTUS_WAIT_TEXTURE
+	visual_sprite.hframes = 2
+	visual_sprite.frame = 0
+	visual_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(visual_sprite)
 	var shape_node := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = 14.0
@@ -115,6 +128,14 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
+	if hit_flash_remaining > 0.0:
+		hit_flash_elapsed += delta
+		modulate = Color("#ff4b4b") if int(hit_flash_elapsed / HIT_FLASH_INTERVAL) % 2 == 0 else Color.WHITE
+	else:
+		modulate = Color.WHITE
+	if is_instance_valid(visual_sprite):
+		visual_sprite.frame = int(Time.get_ticks_msec() / 220) % 2
 	if not mature:
 		age += delta
 		if age >= GROW_TIME:
@@ -173,6 +194,8 @@ func take_damage(amount: int = 1) -> bool:
 	if dead or not mature or spawn_grace_remaining > 0.0 or amount <= 0:
 		return false
 	health = maxi(0, health - amount)
+	hit_flash_remaining = HIT_FLASH_DURATION
+	hit_flash_elapsed = 0.0
 	queue_redraw()
 	if health > 0:
 		return true
@@ -183,26 +206,16 @@ func take_damage(amount: int = 1) -> bool:
 	return true
 
 func _draw() -> void:
-	if not mature:
-		draw_shadow_ellipse(Vector2(0, 8), Vector2(13, 5), Color(0.05, 0.1, 0.1, 0.28))
-		draw_circle(Vector2(-5, -5), 8.0, Color("#e77a32"))
-		draw_circle(Vector2(5, -6), 8.0, Color("#f29a3d"))
-		return
-	var leaf_bob := sin(leaf_wave) * 2.0
-	draw_shadow_ellipse(Vector2(0, 10), Vector2(17, 6), Color(0.05, 0.1, 0.1, 0.34))
-	draw_line(Vector2(0, 10), Vector2(0, -11), Color("#6f3d2b"), 6.0)
-	draw_circle(Vector2(0, -13), 14.0, Color("#e77a32"))
-	draw_circle(Vector2(-14, -14 + leaf_bob), 11.0, Color("#f29a3d"))
-	draw_circle(Vector2(14, -14 - leaf_bob), 11.0, Color("#f29a3d"))
-	draw_arc(Vector2(-14, -14 + leaf_bob), 11.0, -PI * 0.8, PI * 0.8, 16, Color("#8f4b2e"), 2.0)
-	draw_arc(Vector2(14, -14 - leaf_bob), 11.0, PI * 0.2, PI * 1.8, 16, Color("#8f4b2e"), 2.0)
-	if target != null and target.global_position.distance_to(global_position) <= ATTACK_RANGE:
+	var shadow_size := Vector2(13, 5) if not mature else Vector2(17, 6)
+	var shadow_alpha := 0.28 if not mature else 0.34
+	draw_shadow_ellipse(Vector2(0, 10), shadow_size, Color(0.05, 0.1, 0.1, shadow_alpha))
+	if target != null and mature and target.global_position.distance_to(global_position) <= ATTACK_RANGE:
 		var target_angle := (target.global_position - global_position).angle()
 		for leaf_sign in [-1.0, 1.0]:
 			var fan_center: float = target_angle + LEAF_FAN_OFFSET * float(leaf_sign)
-			draw_arc(Vector2(0, -13), ATTACK_RANGE, fan_center - LEAF_FAN_SPREAD, fan_center + LEAF_FAN_SPREAD, 16, Color(0.95, 0.55, 0.2, 0.14), 1.0, true)
+			draw_arc(Vector2.ZERO, ATTACK_RANGE, fan_center - LEAF_FAN_SPREAD, fan_center + LEAF_FAN_SPREAD, 16, Color(0.95, 0.55, 0.2, 0.14), 1.0, true)
 	for index in range(health):
-		draw_circle(Vector2(-8 + index * 4, -34), 1.8, Color("#f6c15a"))
+		draw_circle(Vector2(-8 + index * 4, -28), 1.8, Color("#f6c15a"))
 
 func draw_shadow_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()
