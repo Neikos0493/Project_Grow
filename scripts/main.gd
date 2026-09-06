@@ -11,6 +11,7 @@ const MELEE_WEAPON := "melee_weapon"
 const PEA_DROP := "pea_drop"
 const MUTATED_PEA_DROP := "mutated_pea_drop"
 const CACTUS_DROP := "cactus_drop"
+const PURE_CACTUS_DROP := "pure_cactus_drop"
 const SAXAUL_SEED := "saxaul_seed"
 const LILY_SEED := "lily_seed"
 const BLUE_SEED := "blue_seed"
@@ -717,11 +718,11 @@ func _open_ranger_dialogue() -> void:
 		dialogue_box.open_dialogue("迷之向日葵", [
 			"你看起来很不一般",
 			"这里从前是一望无际的大草原，可惜现在变成了大荒漠",
-			"你能给我找个墨镜来吗，这里的太阳太毒了",
-			"我会为你准备一个好东西作为回礼！",
+			"你能帮我收集纯净仙人掌果实吗？",
+			"五个仙人掌果实会自动合成为一个纯净果实，我会用它准备一个好东西作为回礼！",
 		], _msg("E  Continue|E  Close", "E  继续|E  关闭"))
 		return
-	var choice := "交付「墨镜」" if inventory.has_item(SUNGLASSES) else "交付「？？？」"
+	var choice := "交付「纯净仙人掌果实」" if inventory.has_item(PURE_CACTUS_DROP) else "交付「？？？」"
 	_dialogue_choice_context = "sunflower"
 	dialogue_box.open_choice_dialogue("迷之向日葵", "你来啦？", choice, _msg("E  Select", "E  选择"), "继续")
 
@@ -818,7 +819,7 @@ func _on_dialogue_choice_selected(_index: int) -> void:
 		return
 	match _dialogue_choice_context:
 		"sunflower":
-			if inventory.try_exchange(SUNGLASSES, SAXAUL_SEED, 1):
+			if inventory.try_exchange(PURE_CACTUS_DROP, SAXAUL_SEED, 1):
 				game_state.sunflower_quest_state = 2
 				_dialogue_choice_context = ""
 				_mark_save_dirty()
@@ -1196,7 +1197,21 @@ func _try_pickup() -> void:
 		return
 	var taken := world.take_drop(index)
 	if inventory.try_add(str(taken["item_id"]), int(taken["count"])):
+		if str(taken["item_id"]) == CACTUS_DROP:
+			_refine_cactus_fruit()
 		_show_toast(_msg("Picked up %s." % inventory.get_item_name(str(taken["item_id"])), "拾取了 %s。" % inventory.get_item_name(str(taken["item_id"]))))
+
+func _refine_cactus_fruit() -> void:
+	var cactus_count := inventory.get_item_count(CACTUS_DROP)
+	var refined_count := int(cactus_count / 5)
+	if refined_count <= 0:
+		return
+	if inventory.try_exchange(CACTUS_DROP, PURE_CACTUS_DROP, refined_count):
+		_mark_save_dirty()
+		_show_toast(_msg(
+			"Five cactus fruits refined into 1 pure cactus fruit.",
+			"5 个仙人掌果实自动合成为 1 个纯净仙人掌果实。"
+		))
 
 func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: String = "") -> void:
 	if traveling or shop_open or radar_open or dialogue_box.is_open() or player.dead or player.controls_locked:

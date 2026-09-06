@@ -35,6 +35,7 @@ const KNOWN_ITEM_IDS := {
 	"pea_drop": 64,
 	"mutated_pea_drop": 64,
 	"cactus_drop": 64,
+	"pure_cactus_drop": 64,
 	"saxaul_seed": 1,
 	"lily_seed": 1,
 	"blue_seed": 1,

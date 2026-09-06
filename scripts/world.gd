@@ -1044,6 +1044,8 @@ func _draw_drop(drop: Dictionary) -> void:
 					base_color = Color("#f3c969")
 				"cactus_drop":
 					base_color = Color("#e77a32")
+				"pure_cactus_drop":
+					base_color = Color("#f0c95c")
 			draw_circle(position, 6.0, base_color if available else Color(base_color, 0.35))
 	if not available:
 		draw_arc(position, 10.0, 0.0, TAU, 24, Color(0.95, 0.78, 0.4, 0.45), 1.0)

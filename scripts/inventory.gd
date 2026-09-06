@@ -140,6 +140,17 @@ const ITEM_DEFINITIONS := {
 		"buy_price": 0,
 		"description": "A valuable fruit from an orange cactus.",
 	},
+	"pure_cactus_drop": {
+		"name": "Pure Cactus Fruit",
+		"consumable": false,
+		"droppable": true,
+		"show_count": true,
+		"max_stack": MAX_STACK,
+		"icon": "pure_cactus_drop",
+		"sell_price": 0,
+		"buy_price": 0,
+		"description": "Five cactus fruits refined into a pure offering for the saxaul seed.",
+	},
 	"saxaul_seed": {
 		"name": "Saxaul Seed",
 		"consumable": true,
@@ -241,6 +252,13 @@ func get_selected_item_id() -> String:
 func get_selected_count() -> int:
 	return int(slots[selected_slot]["count"])
 
+func get_item_count(item_id: String) -> int:
+	var total := 0
+	for slot in slots:
+		if str(slot.get("id", "")) == item_id:
+			total += int(slot.get("count", 0))
+	return total
+
 func has_item(item_id: String) -> bool:
 	if item_id.is_empty():
 		return false
@@ -267,6 +285,7 @@ func get_item_name(item_id: String) -> String:
 			"pea_drop": return "豌豆"
 			"mutated_pea_drop": return "金色豌豆"
 			"cactus_drop": return "仙人掌果实"
+			"pure_cactus_drop": return "纯净仙人掌果实"
 			"saxaul_seed": return "梭梭树种子"
 			"lily_seed": return "睡莲种子"
 			"plant": return "植物"
@@ -287,6 +306,7 @@ func get_item_description(item_id: String) -> String:
 			"pea_drop": return "或许能吃"
 			"mutated_pea_drop": return "湖之守望者需要的稀有金色豌豆。"
 			"cactus_drop": return "仙人掌掉落的高价值果实。"
+			"pure_cactus_drop": return "五个仙人掌果实提炼成的纯净贡品，可向 NPC 兑换梭梭树种子。"
 			"saxaul_seed": return "种在第二个区域一片完整的 3×3 沙地中央。"
 			"lily_seed": return "种在池塘里，可以唤醒湖怪。"
 			"plant": return "成熟植物，可以在商店出售。"
