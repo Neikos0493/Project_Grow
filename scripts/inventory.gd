@@ -281,7 +281,7 @@ func get_item_description(item_id: String) -> String:
 			"green_seed": return "或许能种出些不一般的东西"
 			"bean_seed": return "只能长成普通的绿色豌豆植株。"
 			"sunglasses": return "给沙漠里的太阳戴上墨镜。"
-			"bow": return "无需弹药即可持续射出箭矢。"
+			"bow": return "森林的力量凝结出源源不断的箭矢"
 			"tree_gun": return "蓄力一秒后发射穿越边界的绿色激光。"
 			"melee_weapon": return "挥舞黄色短刃，轻微击退怪物。"
 			"pea_drop": return "或许能吃"
