@@ -10,6 +10,8 @@ const GUN_SOURCE_RECT := Rect2(40, 311, 330, 245)
 # direction so its string and the arrow share the same forward direction.
 const BOW_SOURCE_FORWARD := Vector2.LEFT
 const BOW_DRAW_ROTATION := deg_to_rad(-40.0)
+const BOW_DRAW_SCALE := 0.08
+const BOW_DRAW_OFFSET := Vector2(7, -3)
 const GUN_SOURCE_FORWARD := Vector2.RIGHT
 
 var weapon_id := ""
@@ -44,8 +46,8 @@ func get_muzzle_global_position() -> Vector2:
 func _draw() -> void:
 	if weapon_id == "bow":
 		# The source bow points diagonally; rotate its cropped art into the aim direction.
-		draw_set_transform(Vector2(9, -5), deg_to_rad(-40.0), Vector2(0.12, 0.12))
-		draw_texture_rect_region(BOW_TEXTURE, Rect2(-180, -424, 360, 848), BOW_SOURCE_RECT)
+		draw_set_transform(BOW_DRAW_OFFSET, BOW_DRAW_ROTATION, Vector2(BOW_DRAW_SCALE, BOW_DRAW_SCALE))
+		draw_texture_rect_region(BOW_TEXTURE, Rect2(-143, -424, 286, 848), BOW_SOURCE_RECT)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	elif weapon_id == "tree_gun":
 		draw_set_transform(Vector2(8, -4), 0.0, Vector2(0.15, 0.15))
