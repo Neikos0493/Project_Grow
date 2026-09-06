@@ -49,9 +49,9 @@ const BOSS_DEATH_SOUND := preload("res://sound/BOSS死亡，结束音效.mp3")
 const WATER_LILY_SPAWN_SOUND := preload("res://sound/图一BOSS睡莲生成音效.mp3")
 const FINAL_BOSS_PHASE_SOUND := preload("res://sound/最终BOSS第一个血条清空后转阶段播放这个.mp3")
 const TREE_GUN_FIRE_SOUND := preload("res://sound/神树蓄力疫一秒后发射的激光用这个.mp3")
-const FINAL_BOSS_MUSIC_PHASE_ONE := preload("res://sound/maou_bgm_fantasy10.mp3")
-const FINAL_BOSS_MUSIC_PHASE_TWO := preload("res://sound/maou_bgm_fantasy14.mp3")
-const FINAL_BOSS_MUSIC_PHASE_THREE := preload("res://sound/maou_bgm_fantasy15.mp3")
+const FINAL_BOSS_MUSIC_PHASE_ONE: AudioStream = preload("res://sound/maou_bgm_fantasy10.ogg")
+const FINAL_BOSS_MUSIC_PHASE_TWO: AudioStream = preload("res://sound/maou_bgm_fantasy14.ogg")
+const FINAL_BOSS_MUSIC_PHASE_THREE: AudioStream = preload("res://sound/maou_bgm_fantasy15.ogg")
 const BOTTLE_TEXTURES := [
 	preload("res://assets/generated/bottle/bottle.png"),
 	preload("res://assets/generated/bottle/bottle_half.png"),
@@ -2013,9 +2013,9 @@ func _set_final_boss_music(phase: int) -> void:
 			next_stream = FINAL_BOSS_MUSIC_PHASE_ONE
 	_final_boss_music_player.stop()
 	_final_boss_music_player.stream = next_stream
-	var mp3_stream := next_stream as AudioStreamMP3
-	if mp3_stream != null:
-		mp3_stream.loop = true
+	var ogg_stream := next_stream as AudioStreamOggVorbis
+	if ogg_stream != null:
+		ogg_stream.loop = true
 	_final_boss_music_player.play()
 
 func _spawn_final_boss_peas(count: int, golden: bool) -> void:
