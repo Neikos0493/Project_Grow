@@ -21,6 +21,7 @@ const ATTACK_RANGE := 150.0 * MeadowWorld.TILE_SIZE
 const FALL_GRACE := 1.25
 const WORLD_MASK := 1
 const PLAYER_MASK := 2
+const FINAL_BOSS_TEXTURE := preload("res://assets/Hu1.png")
 
 var target: MeadowPlayer
 var world: MeadowWorld
@@ -35,6 +36,7 @@ var entity_id := ""
 var current_phase := 1
 var phase_two_summoned := false
 var phase_three_summoned := false
+var visual_sprite: Sprite2D
 
 func setup(new_target: MeadowPlayer, new_world: MeadowWorld) -> void:
 	target = new_target
@@ -50,6 +52,14 @@ func activate() -> void:
 	queue_redraw()
 
 func _ready() -> void:
+	visual_sprite = Sprite2D.new()
+	visual_sprite.name = "FinalBossSprite"
+	visual_sprite.texture = FINAL_BOSS_TEXTURE
+	visual_sprite.hframes = 5
+	visual_sprite.frame = 0
+	visual_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	visual_sprite.scale = Vector2.ONE * 1.15
+	add_child(visual_sprite)
 	var collision_shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = 30.0
@@ -60,6 +70,8 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead or not active:
 		return
+	if is_instance_valid(visual_sprite):
+		visual_sprite.frame = int(Time.get_ticks_msec() / 125) % 5
 	if fall_grace_remaining > 0.0:
 		fall_grace_remaining = maxf(0.0, fall_grace_remaining - delta)
 		return
@@ -137,11 +149,5 @@ func get_damage_number_position() -> Vector2:
 func _draw() -> void:
 	var phase := _get_phase()
 	var phase_color := Color("#8d56c9") if phase == 1 else Color("#d45c87") if phase == 2 else Color("#e24e4e")
-	draw_circle(Vector2(0, 8), 34.0, Color(0.05, 0.1, 0.1, 0.42))
-	draw_circle(Vector2.ZERO, 31.0, Color("#352943"))
-	draw_arc(Vector2.ZERO, 31.0, 0.0, TAU, 32, phase_color, 4.0, true)
-	draw_circle(Vector2(-10, -7), 6.0, phase_color)
-	draw_circle(Vector2(10, -7), 6.0, phase_color)
-	draw_line(Vector2(-14, 12), Vector2(14, 12), phase_color, 4.0)
-	if not active:
-		draw_arc(Vector2.ZERO, 40.0, 0.0, TAU, 24, Color(0.9, 0.8, 0.4, 0.75), 2.0, true)
+	draw_circle(Vector2(0, 24), 34.0, Color(0.05, 0.1, 0.1, 0.42))
+	draw_arc(Vector2.ZERO, 38.0, 0.0, TAU, 32, phase_color, 3.0, true)
