@@ -157,7 +157,7 @@ offset_bottom = 30.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.96, 0.82, 0.47, 1)
 theme_override_font_sizes/font_size = 16
-text = "COINS  9999"
+text = "COINS  0"
 horizontal_alignment = 2
 
 [node name="HealthLabel" type="Label" parent="HUD/TopBar"]

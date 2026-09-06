@@ -46,7 +46,7 @@ var session_initialized := false
 var language := "zh"
 var current_map_id := &"greenmeadow"
 var inventory_state: Dictionary = {}
-var coins := 9999
+var coins := 0
 var player_health := MAX_HEALTH
 var quest_state := QUEST_STATE_MIN
 var unlocked_map_ids: Array[StringName] = []
@@ -75,7 +75,7 @@ func reset_session() -> void:
 	session_initialized = true
 	current_map_id = &"greenmeadow"
 	inventory_state = _default_inventory_state()
-	coins = 9999
+	coins = 0
 	player_health = MAX_HEALTH
 	quest_state = QUEST_STATE_MIN
 	unlocked_map_ids.clear()
@@ -359,7 +359,7 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		unlocked.append(String(&"sunset_shore"))
 	return {
 		"inventory": normalized_inventory,
-		"coins": clampi(int(data.get("coins", 9999)), 0, MAX_COINS),
+		"coins": clampi(int(data.get("coins", 0)), 0, MAX_COINS),
 		"player_health": clampi(int(data.get("player_health", MAX_HEALTH)), 0, MAX_HEALTH),
 		"quest_state": clampi(int(data.get("quest_state", QUEST_STATE_MIN)), QUEST_STATE_MIN, QUEST_STATE_MAX),
 		"orange_seed_granted": bool(data.get("orange_seed_granted", false)),
