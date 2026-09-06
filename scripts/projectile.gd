@@ -32,6 +32,10 @@ var beam_frame := 0
 var beam_frame_elapsed := 0.0
 var beam_animated := false
 var beam_collision_checked := false
+var homing_target: Node2D
+var homing_remaining := 0.0
+var max_range := 0.0
+var traveled_distance := 0.0
 
 func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, target_mask: int = 1, hit_damage: int = 0, hit_source: Node = null, color := Color("#f3c969"), projectile_speed: float = SPEED, beam_length: float = 0.0, visual_texture: Texture2D = null, visual_source_rect := Rect2(0, 0, 0, 0), visual_display_size := Vector2.ZERO, rotation_offset := 0.0, animated_beam := false) -> void:
 	global_position = origin
@@ -53,6 +57,13 @@ func setup(origin: Vector2, aim: Vector2, space: PhysicsDirectSpaceState2D, targ
 	rotation = direction.angle() + projectile_rotation_offset
 	queue_redraw()
 
+func enable_homing(target: Node2D, duration: float) -> void:
+	homing_target = target
+	homing_remaining = maxf(0.0, duration)
+
+func set_max_range(value: float) -> void:
+	max_range = maxf(0.0, value)
+
 func _physics_process(delta: float) -> void:
 	age += delta
 	if beam_animated and trail_length > 0.0:
@@ -65,7 +76,19 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	var from := global_position
+	if homing_remaining > 0.0 and is_instance_valid(homing_target):
+		homing_remaining = maxf(0.0, homing_remaining - delta)
+		var target_direction := homing_target.global_position - global_position
+		if target_direction.length_squared() > 0.01:
+			direction = direction.slerp(target_direction.normalized(), minf(1.0, delta * 4.0)).normalized()
+		rotation = direction.angle() + projectile_rotation_offset
 	var to := from + direction * speed * delta
+	if max_range > 0.0:
+		var step_distance := from.distance_to(to)
+		traveled_distance += step_distance
+		if traveled_distance >= max_range:
+			queue_free()
+			return
 	if beam_animated:
 		to = from + direction * trail_length
 	if collision_space != null:

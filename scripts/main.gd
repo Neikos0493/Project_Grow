@@ -41,6 +41,8 @@ const BOSS_SAXAUL := &"saxaul_boss"
 const BOSS_SKY := &"sky_boss"
 const SAXAUL_VINE_SCRIPT = preload("res://scripts/saxaul_vine.gd")
 const TREE_LASER_SCRIPT = preload("res://scripts/tree_laser.gd")
+const FINAL_BOSS_SCRIPT = preload("res://scripts/final_boss.gd")
+const FINAL_BOSS_BULLET_RANGE := 150.0 * MeadowWorld.TILE_SIZE
 const BOTTLE_TEXTURES := [
 	preload("res://assets/generated/bottle/bottle.png"),
 	preload("res://assets/generated/bottle/bottle_half.png"),
@@ -118,7 +120,7 @@ var water_spread_index := 0
 var water_emerge_elapsed := 0.0
 var lake_monster: MeadowLakeMonster
 var saxaul_boss: MeadowSaxaulBoss
-var sky_boss: MeadowLakeMonster
+var sky_boss: MeadowFinalBoss
 var saxaul_vines: Array[StaticBody2D] = []
 var saxaul_spread_active := false
 var saxaul_spread_rings: Array = []
@@ -461,6 +463,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if shop_mouse != null and shop_mouse.pressed and shop_mouse.button_index == MOUSE_BUTTON_RIGHT:
 			_sell_inventory_slot(inventory_hud.get_slot_at_viewport_position(shop_mouse.position))
 			get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("summon_final_boss"):
+		_spawn_sky_boss()
+		get_viewport().set_input_as_handled()
 		return
 	var key_event := event as InputEventKey
 	if key_event != null and key_event.pressed and not key_event.echo:
@@ -1400,7 +1406,7 @@ func _spawn_projectile(
 	visual_display_size := Vector2.ZERO,
 	rotation_offset := 0.0,
 	animated_beam := false
-) -> void:
+) -> MeadowProjectile:
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
 	projectile.setup(
@@ -1430,6 +1436,7 @@ func _spawn_projectile(
 			Rect2(402, 418, 782, 25),
 		]:
 			projectile.beam_source_rects.append(source_rect)
+	return projectile
 
 func _on_green_plant_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
@@ -1520,12 +1527,14 @@ func _live_pursuing_plant_count() -> int:
 			count += 1
 	return count
 
-func _create_pursuing_plant(cell: Vector2i, restored_state: Dictionary = {}, force_green: bool = false) -> MeadowPursuingPlant:
+func _create_pursuing_plant(cell: Vector2i, restored_state: Dictionary = {}, force_green: bool = false, force_mutation: bool = false) -> MeadowPursuingPlant:
 	if not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
 		return null
-	var is_mutation := bool(restored_state.get("mutated", false))
-	if restored_state.is_empty() and not force_green:
-		is_mutation = game_state.green_plantings_since_mutation >= 9 or randf() < 0.1
+	var is_mutation := force_mutation
+	if not force_mutation:
+		is_mutation = bool(restored_state.get("mutated", false))
+		if restored_state.is_empty():
+			is_mutation = game_state.green_plantings_since_mutation >= 9 or randf() < 0.1
 	var plant: MeadowPursuingPlant = MeadowMutatedPlant.new() if is_mutation else MeadowPursuingPlant.new()
 	plants.add_child(plant)
 	plant.global_position = world.to_global(world.cell_to_world(cell))
@@ -1572,8 +1581,8 @@ func _create_saxaul_boss(
 		_show_saxaul_boss_bar()
 	return tree
 
-func _create_orange_cactus(cell: Vector2i, restored_state: Dictionary = {}) -> MeadowOrangeCactus:
-	if not world.supports_orange_farming() or not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
+func _create_orange_cactus(cell: Vector2i, restored_state: Dictionary = {}, force_spawn: bool = false) -> MeadowOrangeCactus:
+	if (not world.supports_orange_farming() and not force_spawn) or not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
 		return null
 	var cactus := MeadowOrangeCactus.new()
 	plants.add_child(cactus)
@@ -1845,13 +1854,16 @@ func _update_water_encounter(delta: float) -> void:
 func _spawn_sky_boss() -> void:
 	if not world.get_map_id() == &"greenmeadow" or is_instance_valid(sky_boss):
 		return
-	var boss := MeadowLakeMonster.new()
+	var boss: MeadowFinalBoss = FINAL_BOSS_SCRIPT.new()
 	boss.entity_id = _next_entity_id("sky_boss")
-	boss.setup(player, world, world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
+	boss.setup(player, world)
+	boss.projectile_requested.connect(_on_final_boss_projectile_requested)
+	boss.summon_requested.connect(_on_final_boss_summon_requested)
 	boss.died.connect(_on_sky_boss_died)
 	boss.health_changed.connect(_on_sky_boss_health_changed)
 	world.add_child(boss)
 	sky_boss = boss
+	boss.global_position = world.to_global(world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
 	boss_title.text = _msg("FALLEN WORLD BOSS", "天降世界 Boss")
 	_on_sky_boss_health_changed(boss.health, boss.MAX_HEALTH)
 	boss_bar.show()
@@ -1859,7 +1871,55 @@ func _spawn_sky_boss() -> void:
 	var fall_tween := create_tween()
 	fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	fall_tween.tween_property(boss, "global_position", landing, 1.2)
+	fall_tween.tween_callback(boss.activate)
 	_show_toast(_msg("Something is falling from the sky!", "有什么东西从天上掉下来了！"))
+
+func _on_final_boss_projectile_requested(origin: Vector2, direction: Vector2, speed: float, _homing: bool) -> void:
+	if not is_instance_valid(sky_boss) or sky_boss.dead:
+		return
+	var projectile := _spawn_projectile(origin, direction, WORLD_MASK | PLAYER_MASK, 1, sky_boss, Color("#e24e4e"), speed)
+	projectile.set_max_range(FINAL_BOSS_BULLET_RANGE)
+
+func _on_final_boss_summon_requested(phase: int) -> void:
+	if not is_instance_valid(sky_boss):
+		return
+	if phase == 2:
+		_spawn_final_boss_peas(9, false)
+		_show_toast(_msg("The final boss summoned pea minions!", "最终 Boss 召唤了豌豆！"))
+	elif phase == 3:
+		_spawn_final_boss_peas(9, true)
+		_spawn_final_boss_cacti(15)
+		_show_toast(_msg("Golden peas and cacti have joined the battle!", "黄金豌豆和仙人掌加入了战斗！"))
+
+func _spawn_final_boss_peas(count: int, golden: bool) -> void:
+	var reserved := {}
+	for _index in range(count):
+		var cell := _get_random_final_boss_cell(reserved)
+		if cell.x < 0:
+			continue
+		reserved[cell] = true
+		_create_pursuing_plant(cell, {}, false, golden)
+
+func _spawn_final_boss_cacti(count: int) -> void:
+	var reserved := {}
+	for _index in range(count):
+		var cell := _get_random_final_boss_cell(reserved)
+		if cell.x < 0:
+			continue
+		reserved[cell] = true
+		_create_orange_cactus(cell, {}, true)
+
+func _get_random_final_boss_cell(reserved: Dictionary) -> Vector2i:
+	for attempt in range(100):
+		var cell := Vector2i(
+			randi_range(1, MeadowWorld.MAP_SIZE.x - 2),
+			randi_range(1, MeadowWorld.MAP_SIZE.y - 2)
+		)
+		if reserved.has(cell) or world.is_prop_cell(cell) or world.farm_tiles.has(cell):
+			continue
+		if world.is_valid_farm_cell(cell) and world.is_position_unoccupied(world.cell_to_world(cell)):
+			return cell
+	return Vector2i(-1, -1)
 
 func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	_set_boss_health(current, maximum)
