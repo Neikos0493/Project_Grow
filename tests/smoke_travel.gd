@@ -373,13 +373,30 @@ func _test_gameplay_update_regressions(main: MeadowMain, game_state: Node) -> bo
 	if not _expect(not main.inventory.is_droppable(main.HOE) and main.inventory.get_sell_price(main.HOE) == 0, "Hoe is still droppable or sellable"):
 		return false
 	var center := Vector2i(5, 5)
-	var tilled_count := main.world.till_nearby(main.world.cell_to_world(center))
-	if not _expect(tilled_count == 9, "Hoe did not till the current tile and all eight valid neighbors"):
+	var player_position := main.world.cell_to_world(center)
+	var hoe_target := center + Vector2i.RIGHT
+	var hoe_cell := main.world.get_pointer_cell(
+		main.world.cell_to_world(hoe_target),
+		player_position,
+		Vector2.ZERO,
+		main.HOE
+	)
+	if not _expect(hoe_cell == hoe_target, "Hoe rejected a target in the surrounding ring"):
 		return false
-	for y in range(center.y - 1, center.y + 2):
-		for x in range(center.x - 1, center.x + 2):
-			if not _expect(main.world.farm_tiles.has(Vector2i(x, y)), "Hoe omitted a neighboring grass tile"):
-				return false
+	if not _expect(main.world.till(hoe_cell), "Hoe could not till the pointer target"):
+		return false
+	if not _expect(main.world.farm_tiles.size() == 1 and main.world.farm_tiles.has(hoe_target), "Hoe tilled more than the pointer target"):
+		return false
+	if not _expect(
+		main.world.get_pointer_cell(
+			main.world.cell_to_world(center + Vector2i(2, 0)),
+			player_position,
+			Vector2.ZERO,
+			main.HOE
+		) == Vector2i(-1, -1),
+		"Hoe accepted a target outside its work range"
+	):
+		return false
 	main.world.restore_state({})
 	main.inventory.import_state(_inventory_state([
 		{"id": main.SMALL_SEED, "count": 1},

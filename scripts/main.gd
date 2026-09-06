@@ -1233,8 +1233,9 @@ func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: 
 	var player_map_facing := _player_facing_in_map()
 	match item_id:
 		HOE:
-			var tilled_count := world.till_nearby(player_map_position)
-			_show_toast(_msg("Tilled %d nearby tile(s)." % tilled_count, "翻耕了周围 %d 块土地。" % tilled_count) if tilled_count > 0 else _msg("There is no tillable grass here or nearby.", "所在地块与周围没有可翻耕的草地。"))
+			var hoe_cell := world.get_pointer_cell(pointer_map_position, player_map_position, player_map_facing, HOE)
+			var tilled := world.till(hoe_cell)
+			_show_toast(_msg("Tilled one tile." if tilled else "There is no tillable grass in range.", "翻耕了 1 块土地。" if tilled else "范围内没有可翻耕的草地。"))
 		GREEN_SEED, SMALL_SEED:
 			var seed_cell := world.get_pointer_cell(pointer_map_position, player_map_position, player_map_facing, GREEN_SEED)
 			if seed_cell.x < 0 or inventory.get_selected_count() <= 0:

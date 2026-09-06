@@ -134,7 +134,8 @@ func _draw_price(card: Rect2, price: int) -> void:
 
 func _draw_item_icon(center: Vector2, icon: String) -> void:
 	if icon == "bow":
-		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - Vector2(28, 28), Vector2(56, 56)), BOW_SOURCE_RECT)
+		var bow_icon_size := Vector2(56.0 * BOW_SOURCE_RECT.size.x / BOW_SOURCE_RECT.size.y, 56.0)
+		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - bow_icon_size * 0.5, bow_icon_size), BOW_SOURCE_RECT)
 	elif icon == "tree_gun":
 		draw_texture_rect_region(TREE_GUN_TEXTURE, Rect2(center - Vector2(30, 30), Vector2(60, 60)), GUN_SOURCE_RECT)
 	elif icon == "bean_seed":

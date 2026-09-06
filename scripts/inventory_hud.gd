@@ -60,7 +60,8 @@ func get_slot_at_viewport_position(position: Vector2) -> int:
 func _draw_item_icon(center: Vector2, item_id: String) -> void:
 	var icon := str(inventory.get_item_definition(item_id).get("icon", ""))
 	if icon == "bow":
-		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - Vector2(15, 15), Vector2(30, 30)), BOW_SOURCE_RECT)
+		var bow_icon_size := Vector2(30.0 * BOW_SOURCE_RECT.size.x / BOW_SOURCE_RECT.size.y, 30.0)
+		draw_texture_rect_region(BOW_TEXTURE, Rect2(center - bow_icon_size * 0.5, bow_icon_size), BOW_SOURCE_RECT)
 	elif icon == "tree_gun":
 		draw_texture_rect_region(TREE_GUN_TEXTURE, Rect2(center - Vector2(16, 16), Vector2(32, 32)), GUN_SOURCE_RECT)
 	elif icon == "bean_seed":

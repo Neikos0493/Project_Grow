@@ -347,9 +347,10 @@ func get_pointer_cell(mouse_map_position: Vector2, player_map_position: Vector2,
 	var max_distance := HOE_RANGE_CELLS if mode == "hoe" else SEED_RANGE_CELLS
 	if cell_distance > max_distance:
 		return Vector2i(-1, -1)
-	var target_offset := cell_to_world(cell) - player_map_position
-	if facing_map_direction.length_squared() < 0.01 or facing_map_direction.normalized().dot(target_offset.normalized()) < 0.25:
-		return Vector2i(-1, -1)
+	if mode != "hoe":
+		var target_offset := cell_to_world(cell) - player_map_position
+		if facing_map_direction.length_squared() < 0.01 or facing_map_direction.normalized().dot(target_offset.normalized()) < 0.25:
+			return Vector2i(-1, -1)
 	return cell
 
 func till_nearby(player_map_position: Vector2) -> int:
