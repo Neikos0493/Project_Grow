@@ -16,7 +16,7 @@ const BOW_HAND_FORWARD_OFFSET := 12.0
 const GUN_SOURCE_FORWARD := Vector2.RIGHT
 # The muzzle is measured in the same local space as the displayed gun art.
 # Keep this as the single source for both the charge glow and the laser origin.
-const GUN_MUZZLE_POSITION := Vector2(63.0, -4.0)
+const GUN_MUZZLE_POSITION := Vector2(57.0, -7.0)
 
 var weapon_id := ""
 var aim_direction := Vector2.RIGHT

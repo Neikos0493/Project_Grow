@@ -11,7 +11,7 @@ const ITEM_DEFINITIONS := {
 	"hoe": {
 		"name": "Hoe",
 		"consumable": false,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "hoe",
@@ -55,7 +55,7 @@ const ITEM_DEFINITIONS := {
 	"bow": {
 		"name": "Forestwood Bow",
 		"consumable": false,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "bow",
@@ -66,7 +66,7 @@ const ITEM_DEFINITIONS := {
 	"tree_gun": {
 		"name": "神树",
 		"consumable": false,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "tree_gun",
@@ -77,7 +77,7 @@ const ITEM_DEFINITIONS := {
 	"melee_weapon": {
 		"name": "The Village's Best Sword",
 		"consumable": false,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "melee_weapon",
@@ -99,7 +99,7 @@ const ITEM_DEFINITIONS := {
 	"blue_seed": {
 		"name": "Blue Seed",
 		"consumable": true,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "blue_seed",
@@ -154,7 +154,7 @@ const ITEM_DEFINITIONS := {
 	"saxaul_seed": {
 		"name": "Saxaul Seed",
 		"consumable": true,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "saxaul_seed",
@@ -165,7 +165,7 @@ const ITEM_DEFINITIONS := {
 	"lily_seed": {
 		"name": "Water Lily Seed",
 		"consumable": true,
-		"droppable": false,
+		"droppable": true,
 		"show_count": false,
 		"max_stack": 1,
 		"icon": "lily_seed",
@@ -388,6 +388,46 @@ func try_add_to_slot(item_id: String, amount: int, slot_index: int) -> bool:
 		return false
 	slot["id"] = item_id
 	slot["count"] = existing_count + amount
+	inventory_changed.emit()
+	return true
+
+func try_craft(input_item_id: String, input_amount: int, output_item_id: String, output_amount: int = 1) -> bool:
+	if input_item_id.is_empty() or output_item_id.is_empty() or input_amount <= 0 or output_amount <= 0:
+		return false
+	var candidate_slots: Array[Dictionary] = slots.duplicate(true)
+	if not _remove_from_slots(candidate_slots, input_item_id, input_amount):
+		return false
+	if not _add_to_slots(candidate_slots, output_item_id, output_amount):
+		return false
+	slots = candidate_slots
+	inventory_changed.emit()
+	return true
+
+func can_add_bundle(rewards: Array[Dictionary]) -> bool:
+	if rewards.is_empty():
+		return false
+	var candidate_slots: Array[Dictionary] = slots.duplicate(true)
+	for reward in rewards:
+		var item_id := str(reward.get("item_id", ""))
+		var amount := int(reward.get("amount", 0))
+		if not ITEM_DEFINITIONS.has(item_id) or amount <= 0:
+			return false
+		if not _add_to_slots(candidate_slots, item_id, amount):
+			return false
+	return true
+
+func try_add_bundle(rewards: Array[Dictionary]) -> bool:
+	if not can_add_bundle(rewards):
+		return false
+	var candidate_slots: Array[Dictionary] = slots.duplicate(true)
+	for reward in rewards:
+		var item_id := str(reward.get("item_id", ""))
+		var amount := int(reward.get("amount", 0))
+		if not ITEM_DEFINITIONS.has(item_id) or amount <= 0:
+			return false
+		if not _add_to_slots(candidate_slots, item_id, amount):
+			return false
+	slots = candidate_slots
 	inventory_changed.emit()
 	return true
 

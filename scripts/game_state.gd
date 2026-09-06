@@ -19,7 +19,7 @@ const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
 const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
-const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss"]
+const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss", &"sky_boss"]
 const LEGACY_ITEM_REPLACEMENTS := {
 	"yellow_ball": "bow",
 }
@@ -846,10 +846,10 @@ func _boss_ids_to_strings() -> Array[String]:
 func _default_inventory_state() -> Dictionary:
 	return {
 		"slots": [
-			{"id": "", "count": 0},
-			{"id": "green_seed", "count": 6},
-			{"id": "", "count": 0},
 			{"id": "melee_weapon", "count": 1},
+			{"id": "", "count": 0},
+			{"id": "", "count": 0},
+			{"id": "", "count": 0},
 			{"id": "", "count": 0},
 		],
 		"selected_slot": 0,

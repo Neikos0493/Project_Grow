@@ -40,7 +40,13 @@ func set_language(value: String) -> void:
 func _update_hover_text() -> void:
 	if hovered_item_id.is_empty() or inventory == null:
 		return
-	hover_details.text = "%s\n%s" % [inventory.get_item_name(hovered_item_id), inventory.get_item_description(hovered_item_id)]
+	var price := inventory.get_buy_price(hovered_item_id)
+	var price_text := ("价格：%d 金币" % price) if language == "zh" else ("PRICE: %d COINS" % price)
+	hover_details.text = "%s\n%s\n%s" % [
+		inventory.get_item_name(hovered_item_id),
+		inventory.get_item_description(hovered_item_id),
+		price_text if price > 0 else ("不可出售" if language == "zh" else "NOT FOR SALE"),
+	]
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP

@@ -31,7 +31,7 @@ func get_arrival_message() -> String:
 	return "旅途的开始…世界的新生…" if language == "zh" else "The journey begins... a new world is born..."
 
 func get_respawn_message() -> String:
-	return "你回到了绿野。" if language == "zh" else "You returned to Greenmeadow."
+	return "你回到了森林。" if language == "zh" else "You returned to Greenmeadow."
 
 func get_initial_spawn_cell() -> Vector2i:
 	return PLAYER_START_CELL

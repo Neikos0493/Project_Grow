@@ -368,10 +368,16 @@ func _test_gameplay_update_regressions(main: MeadowMain, game_state: Node) -> bo
 	main.world.restore_state({})
 	_clear_runtime_entities(main)
 	var default_inventory: Dictionary = game_state._default_inventory_state()
-	if not _expect(str(default_inventory["slots"][0].get("id", "")).is_empty(), "New games do not leave displayed slot 1 empty for the crate hoe"):
+	if not _expect(default_inventory["slots"][0] == {"id": main.MELEE_WEAPON, "count": 1}, "New games do not start with one village sword in slot 1"):
 		return false
-	if not _expect(not main.inventory.is_droppable(main.HOE) and main.inventory.get_sell_price(main.HOE) == 0, "Hoe is still droppable or sellable"):
+	for slot_index in range(1, MeadowInventory.SLOT_COUNT):
+		if not _expect(default_inventory["slots"][slot_index] == {"id": "", "count": 0}, "New games start with an unexpected extra item"):
+			return false
+	if not _expect(int(default_inventory.get("selected_slot", -1)) == 0, "New games do not select the starting sword"):
 		return false
+	for item_id in MeadowInventory.ITEM_DEFINITIONS:
+		if not _expect(main.inventory.is_droppable(str(item_id)), "Item is not droppable: %s" % item_id):
+			return false
 	var center := Vector2i(5, 5)
 	var player_position := main.world.cell_to_world(center)
 	var hoe_target := center + Vector2i.RIGHT
@@ -575,8 +581,8 @@ func _test_requested_feature_regressions(
 	main._update_bottle_hud()
 	main.world.restore_state({})
 	main.inventory.import_state(_inventory_state([
-		{"id": "", "count": 0},
-		{"id": "", "count": 0},
+		{"id": main.MELEE_WEAPON, "count": 1},
+		{"id": main.GREEN_SEED, "count": 1},
 		{"id": "", "count": 0},
 		{"id": "", "count": 0},
 		{"id": "", "count": 0},
@@ -587,11 +593,19 @@ func _test_requested_feature_regressions(
 	main.player.facing = Vector2.RIGHT
 	main._on_interaction_requested()
 	if not _expect(
-		main.inventory.get_slot(0) == {"id": main.HOE, "count": 1},
-		"Crate did not place the hoe in displayed slot 1"
+		main.inventory.get_slot(0) == {"id": main.MELEE_WEAPON, "count": 1}
+		and main.inventory.get_slot(1) == {"id": main.GREEN_SEED, "count": 1},
+		"Crate overwrote an existing inventory item"
 	):
 		return false
+	var hoe_slot := -1
 	var small_seed_count := 0
+	for slot_index in range(main.inventory.SLOT_COUNT):
+		var reward_slot := main.inventory.get_slot(slot_index)
+		if str(reward_slot.get("id", "")) == main.HOE:
+			hoe_slot = slot_index
+	if not _expect(hoe_slot >= 2, "Crate still forced the hoe into an occupied slot"):
+		return false
 	for slot_index in range(main.inventory.SLOT_COUNT):
 		var slot := main.inventory.get_slot(slot_index)
 		if str(slot.get("id", "")) == main.SMALL_SEED:
@@ -639,6 +653,24 @@ func _test_requested_feature_regressions(
 		legacy_small_seed_count == 3
 		and bool(legacy_crate_target.get("used", false)),
 		"Existing-save hoe owner could not claim the crate's three small seeds"
+	):
+		return false
+	main.world.restore_state({})
+	main.inventory.import_state(_inventory_state([
+		{"id": main.MELEE_WEAPON, "count": 1},
+		{"id": main.GREEN_SEED, "count": 64},
+		{"id": main.BOW, "count": 1},
+		{"id": main.TREE_GUN, "count": 1},
+		{"id": main.SUNGLASSES, "count": 1},
+	]))
+	var full_crate_inventory := main.inventory.export_state()
+	main._on_interaction_requested()
+	var full_crate_target := main.world.get_interaction_target(crate_origin, Vector2.RIGHT)
+	if not _expect(
+		main.inventory.export_state() == full_crate_inventory
+			and main.world.drops.size() == 2
+			and bool(full_crate_target.get("used", false)),
+		"Full inventory did not drop the crate rewards at the player's position"
 	):
 		return false
 	main.world.restore_state({})
@@ -897,11 +929,21 @@ func _test_requested_feature_regressions(
 		main.inventory_sell_tooltip.visible
 		and main.inventory.get_item_name(main.HOE) \
 		in main.inventory_sell_tooltip.text
-		and main._msg("NOT FOR SALE", "非卖品") \
+		and main.inventory.get_item_description(main.HOE) \
 		in main.inventory_sell_tooltip.text,
-		"Non-shop hotbar hover did not show item name and price status"
+		"Hotbar hover did not show the same item description as the shop"
 	):
 		return false
+	main.shop_open = true
+	main._update_inventory_tooltip_at(slot_center)
+	if not _expect(
+		main.inventory.get_item_description(main.HOE) \
+		in main.inventory_sell_tooltip.text,
+		"Shop hotbar hover did not show the item description"
+	):
+		return false
+	main.shop_open = false
+	main._clear_inventory_sell_tooltip()
 	main._set_paused(true)
 	if not _expect(
 		not main.inventory_sell_tooltip.visible,

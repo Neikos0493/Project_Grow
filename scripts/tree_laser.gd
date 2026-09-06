@@ -6,6 +6,10 @@ const TEXTURE := preload("res://assets/generated/weapons/tree_gun.png")
 const SOURCE_RECT := Rect2(381, 243, 805, 30)
 const MAX_LENGTH := 2200.0
 const DISPLAY_HEIGHT := 14.0
+# The beam texture's emission center is at source y=20.0. Draw the
+# destination around that center so it coincides with the charge point.
+const SOURCE_BEAM_CENTER_Y := 20.0
+const EMISSION_OFFSET_Y := -3.0
 const DAMAGE_INTERVAL := 0.08
 
 var direction := Vector2.RIGHT
@@ -34,9 +38,9 @@ func setup(
 	queue_redraw()
 
 func update_beam(origin: Vector2, aim: Vector2) -> void:
-	global_position = origin
 	direction = aim.normalized() if aim.length_squared() > 0.001 else Vector2.RIGHT
 	rotation = direction.angle()
+	global_position = origin + Vector2(0.0, EMISSION_OFFSET_Y).rotated(rotation)
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
@@ -77,7 +81,12 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	draw_texture_rect_region(
 		TEXTURE,
-		Rect2(Vector2.ZERO, Vector2(MAX_LENGTH, DISPLAY_HEIGHT)),
+		# Align the beam's visible center with the white charge-glow center at
+		# the node origin. The source frame's center is below its crop midpoint.
+		Rect2(
+			Vector2(0.0, -SOURCE_BEAM_CENTER_Y * DISPLAY_HEIGHT / SOURCE_RECT.size.y),
+			Vector2(MAX_LENGTH, DISPLAY_HEIGHT)
+		),
 		SOURCE_RECT,
 		tint,
 		false

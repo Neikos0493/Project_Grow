@@ -345,15 +345,16 @@ script = ExtResource("7_inventory_hud")
 [node name="InventorySellTooltip" type="Label" parent="HUD"]
 offset_left = 0.0
 offset_top = 0.0
-offset_right = 180.0
-offset_bottom = 44.0
+offset_right = 240.0
+offset_bottom = 72.0
 mouse_filter = 2
 visible = false
+autowrap_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.86, 0.57, 1)
 theme_override_colors/font_outline_color = Color(0.055, 0.11, 0.13, 0.98)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 13
-text = "SELL PRICE"
+text = "ITEM DESCRIPTION"
 horizontal_alignment = 1
 vertical_alignment = 1
 

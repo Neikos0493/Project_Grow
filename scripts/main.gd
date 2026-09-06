@@ -41,6 +41,8 @@ const BOSS_SAXAUL := &"saxaul_boss"
 const BOSS_SKY := &"sky_boss"
 const SAXAUL_VINE_SCRIPT = preload("res://scripts/saxaul_vine.gd")
 const TREE_LASER_SCRIPT = preload("res://scripts/tree_laser.gd")
+const FINAL_BOSS_SCRIPT = preload("res://scripts/final_boss.gd")
+const FINAL_BOSS_BULLET_RANGE := 150.0 * MeadowWorld.TILE_SIZE
 const BOTTLE_TEXTURES := [
 	preload("res://assets/generated/bottle/bottle.png"),
 	preload("res://assets/generated/bottle/bottle_half.png"),
@@ -106,6 +108,7 @@ var next_entity_serial := 1
 var _last_prompt := ""
 var _inventory_sell_tooltip_slot := -1
 var _inventory_sell_tooltip_item_id := ""
+var _inventory_sell_tooltip_shop_open := false
 var _toast_tween: Tween
 var _respawn_hold_elapsed := 0.0
 var _respawn_triggered_for_death := false
@@ -118,7 +121,7 @@ var water_spread_index := 0
 var water_emerge_elapsed := 0.0
 var lake_monster: MeadowLakeMonster
 var saxaul_boss: MeadowSaxaulBoss
-var sky_boss: MeadowLakeMonster
+var sky_boss: MeadowFinalBoss
 var saxaul_vines: Array[StaticBody2D] = []
 var saxaul_spread_active := false
 var saxaul_spread_rings: Array = []
@@ -462,6 +465,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_sell_inventory_slot(inventory_hud.get_slot_at_viewport_position(shop_mouse.position))
 			get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("summon_final_boss"):
+		_spawn_sky_boss()
+		get_viewport().set_input_as_handled()
+		return
 	var key_event := event as InputEventKey
 	if key_event != null and key_event.pressed and not key_event.echo:
 		match key_event.physical_keycode:
@@ -623,12 +630,16 @@ func _on_bottle_overlay_gui_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _has_active_hostiles() -> bool:
+	if is_instance_valid(sky_boss) and sky_boss.active and not sky_boss.dead:
+		return true
 	if not is_instance_valid(plants):
 		return false
 	for child in plants.get_children():
 		if child is MeadowLakeMonster and not child.dead and not child.is_queued_for_deletion():
 			return true
 		if child is MeadowSaxaulBoss and child.mature and not child.dead and not child.is_queued_for_deletion():
+			return true
+		if child is MeadowFinalBoss and child.active and not child.dead and not child.is_queued_for_deletion():
 			return true
 		if child is MeadowPursuingPlant and child.mature and not child.dead and not child.is_queued_for_deletion():
 			return true
@@ -679,26 +690,24 @@ func _on_interaction_requested() -> void:
 		"crate":
 			if not bool(target.get("used", false)):
 				var already_has_hoe := inventory.has_item(HOE)
-				var candidate_state := inventory.export_state()
-				var candidate_slots: Array[Dictionary] = []
-				candidate_slots.assign(candidate_state.get("slots", []))
+				var rewards: Array[Dictionary] = [
+					{"item_id": SMALL_SEED, "amount": 3},
+				]
 				if not already_has_hoe:
-					if candidate_slots.is_empty() or not str(candidate_slots[0].get("id", "")).is_empty():
-						_show_toast(_msg("Slot 1 must be empty to take the hoe.", "物品栏 1 号位置需要留空才能拿取锄头。"))
+					rewards.push_front({"item_id": HOE, "amount": 1})
+				var rewards_dropped := false
+				if not inventory.try_add_bundle(rewards):
+					if not _drop_rewards_at_position(rewards, player_map_position):
+						_show_toast(_msg("There is no room for the rewards.", "地面已无法容纳这些奖励。"))
 						return
-					candidate_slots[0] = {"id": HOE, "count": 1}
-				var rewards_fit := inventory._add_to_slots(candidate_slots, SMALL_SEED, 3)
-				if not rewards_fit:
-					_show_toast(_msg("Inventory is full.", "背包已满。"))
-					return
-				candidate_state["slots"] = candidate_slots
-				inventory.import_state(candidate_state)
+					rewards_dropped = true
 				world.interact(player_map_position, player_map_facing)
-				_show_toast(
-					_msg("You found 3 small seeds.", "你找到了 3 颗个头稍小的种子。")
-						if already_has_hoe
-						else _msg("You found a hoe and 3 small seeds.", "你找到了一个锄头和 3 颗个头稍小的种子。")
-				)
+				if rewards_dropped:
+					_show_toast(_msg("The inventory is full; the rewards were dropped here.", "物品栏已满，奖励已掉落在原地。"))
+				elif already_has_hoe:
+					_show_toast(_msg("You found 3 small seeds.", "你找到了 3 颗个头稍小的种子。"))
+				else:
+					_show_toast(_msg("You found a hoe and 3 small seeds.", "你找到了一个锄头和 3 颗个头稍小的种子。"))
 				return
 	var message := world.interact(player_map_position, player_map_facing)
 	_show_toast(message if not message.is_empty() else _msg("Nothing to interact with here.", "这里没有可互动的东西。"))
@@ -745,35 +754,32 @@ func _open_world_tree_dialogue() -> void:
 	player.controls_locked = true
 	prompt_box.hide()
 	_clear_inventory_sell_tooltip()
-	var lines: Array[String] = []
-	var energy_delivered := 0
-	if game_state.energy > 0 and game_state.world_tree_energy < 100:
-		energy_delivered = game_state.energy
-		game_state.energy = 0
-		game_state.world_tree_energy = mini(100, game_state.world_tree_energy + energy_delivered)
-		lines.append(_msg(
-			"The World Tree accepted %d energy." % energy_delivered,
-			"世界树吸收了 %d 点能量。" % energy_delivered
-		))
-	if game_state.world_tree_energy >= 100 and not game_state.world_tree_redemption_triggered:
-		game_state.world_tree_redemption_triggered = true
-		_pending_world_tree_boss_drop = true
-		lines.append(_msg(
-			"Has the World Tree found redemption... or has it?",
-			"世界树得到了救赎...吗？"
-		))
-	elif lines.is_empty():
-		lines.append(_msg(
-			"Defeat Bosses and bring their energy here.",
-			"击败 Boss 后把能量带到这里。"
-		))
-	if energy_delivered > 0 or _pending_world_tree_boss_drop:
-		_mark_save_dirty()
-	dialogue_box.open_dialogue(
+	var container_fill := clampi(game_state.container_energy, 0, 100)
+	var message := _get_world_tree_container_message()
+	if container_fill < 100:
+		_dialogue_choice_context = ""
+		dialogue_box.open_dialogue(
+			_msg("World Tree", "世界树"),
+			[message],
+			_msg("E  Continue|E  Close", "E  继续|E  关闭")
+		)
+		return
+	_dialogue_choice_context = "world_tree_container"
+	dialogue_box.open_choice_dialogue(
 		_msg("World Tree", "世界树"),
-		lines,
-		_msg("E  Continue|E  Close", "E  继续|E  关闭")
+		message,
+		_msg("Deliver \"Container\"", "交付「容器」"),
+		_msg("E  Select", "E  选择"),
+		_msg("Continue", "继续")
 	)
+
+func _get_world_tree_container_message() -> String:
+	var container_fill := clampi(game_state.container_energy, 0, 100)
+	if container_fill >= 100:
+		return _msg("The World Tree is calling...", "世界树在呼唤…")
+	if container_fill >= 50:
+		return _msg("You feel the container in your hands grow slightly warm.", "你感到手中的容器微微发热")
+	return _msg("There is no response...", "那里没有回应…")
 
 func _open_lake_dialogue() -> void:
 	if not world.supports_lake_encounter():
@@ -854,6 +860,15 @@ func _on_dialogue_choice_selected(_index: int) -> void:
 					[_msg("Drop it into the water... and it will awaken...", "投入水中…它便会苏醒…")],
 					_msg("E  Continue|E  Close", "E  继续|E  关闭")
 				)
+			return
+		"world_tree_container":
+			if game_state.container_energy < 100:
+				return
+			game_state.world_tree_redemption_triggered = true
+			_pending_world_tree_boss_drop = true
+			_dialogue_choice_context = ""
+			_mark_save_dirty()
+			dialogue_box.close_dialogue()
 			return
 	_dialogue_choice_context = ""
 
@@ -1024,7 +1039,7 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 	game_state.defeated_boss_ids.clear()
 	for value in state.get("defeated_boss_ids", []):
 		var boss_id := StringName(str(value))
-		if boss_id in [&"lake_monster", &"saxaul_boss"] and boss_id not in game_state.defeated_boss_ids:
+		if boss_id in game_state.KNOWN_BOSS_IDS and boss_id not in game_state.defeated_boss_ids:
 			game_state.defeated_boss_ids.append(boss_id)
 	game_state.container_energy = clampi(int(state.get("container_energy", game_state.container_energy)), 0, 100)
 	game_state.sunflower_quest_state = clampi(int(state.get("sunflower_quest_state", game_state.sunflower_quest_state)), 0, 2)
@@ -1147,16 +1162,21 @@ func _update_inventory_tooltip_at(mouse_position: Vector2) -> void:
 	if item_id.is_empty() or int(slot.get("count", 0)) <= 0:
 		_clear_inventory_sell_tooltip()
 		return
-	var price := inventory.get_sell_price(item_id) if shop_open else inventory.get_buy_price(item_id)
-	if _inventory_sell_tooltip_slot != slot_index or _inventory_sell_tooltip_item_id != item_id:
-		var price_text := _msg("PRICE: %d COINS" % price, "价格：%d 金币" % price)
+	if _inventory_sell_tooltip_slot != slot_index \
+	or _inventory_sell_tooltip_item_id != item_id \
+	or _inventory_sell_tooltip_shop_open != shop_open:
+		var tooltip_lines := [inventory.get_item_name(item_id), inventory.get_item_description(item_id)]
 		if shop_open:
-			price_text = _msg("SELL PRICE: %d COINS" % price, "售价：%d 金币" % price) if price > 0 else _msg("CANNOT BE SOLD", "不可出售")
-		elif price <= 0:
-			price_text = _msg("NOT FOR SALE", "非卖品")
-		inventory_sell_tooltip.text = "%s\n%s" % [inventory.get_item_name(item_id), price_text]
+			var sell_price := inventory.get_sell_price(item_id)
+			tooltip_lines.append(
+				_msg("SELL PRICE: %d COINS" % sell_price, "售价：%d 金币" % sell_price)
+				if sell_price > 0
+				else _msg("CANNOT BE SOLD", "不可出售")
+			)
+		inventory_sell_tooltip.text = "\n".join(tooltip_lines)
 		_inventory_sell_tooltip_slot = slot_index
 		_inventory_sell_tooltip_item_id = item_id
+		_inventory_sell_tooltip_shop_open = shop_open
 	var tooltip_size := inventory_sell_tooltip.size
 	var viewport_size := get_viewport_rect().size
 	var position := mouse_position + Vector2(14.0, -tooltip_size.y - 10.0)
@@ -1168,8 +1188,22 @@ func _update_inventory_tooltip_at(mouse_position: Vector2) -> void:
 func _clear_inventory_sell_tooltip() -> void:
 	_inventory_sell_tooltip_slot = -1
 	_inventory_sell_tooltip_item_id = ""
+	_inventory_sell_tooltip_shop_open = false
 	inventory_sell_tooltip.text = ""
 	inventory_sell_tooltip.hide()
+
+func _drop_rewards_at_position(rewards: Array[Dictionary], map_position: Vector2) -> bool:
+	var added_indices: Array[int] = []
+	for reward in rewards:
+		var item_id := str(reward.get("item_id", ""))
+		var amount := int(reward.get("amount", 0))
+		var drop_index := world.drops.size()
+		if not world.add_drop(map_position, item_id, amount, 0):
+			for index in range(added_indices.size() - 1, -1, -1):
+				world.take_drop(added_indices[index])
+			return false
+		added_indices.append(drop_index)
+	return true
 
 func _drop_selected_item() -> void:
 	var item_id := inventory.get_selected_item_id()
@@ -1206,11 +1240,11 @@ func _refine_cactus_fruit() -> void:
 	var refined_count := int(cactus_count / 5)
 	if refined_count <= 0:
 		return
-	if inventory.try_exchange(CACTUS_DROP, PURE_CACTUS_DROP, refined_count):
+	if inventory.try_craft(CACTUS_DROP, refined_count * 5, PURE_CACTUS_DROP, refined_count):
 		_mark_save_dirty()
 		_show_toast(_msg(
-			"Five cactus fruits refined into 1 pure cactus fruit.",
-			"5 个仙人掌果实自动合成为 1 个纯净仙人掌果实。"
+			"Five cactus fruits refined into %d pure cactus fruit(s)." % refined_count,
+			"每 5 个仙人掌果实自动合成为 1 个纯净仙人掌果实，共合成 %d 个。" % refined_count
 		))
 
 func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: String = "") -> void:
@@ -1400,7 +1434,7 @@ func _spawn_projectile(
 	visual_display_size := Vector2.ZERO,
 	rotation_offset := 0.0,
 	animated_beam := false
-) -> void:
+) -> MeadowProjectile:
 	var projectile := MeadowProjectile.new()
 	projectiles.add_child(projectile)
 	projectile.setup(
@@ -1430,6 +1464,7 @@ func _spawn_projectile(
 			Rect2(402, 418, 782, 25),
 		]:
 			projectile.beam_source_rects.append(source_rect)
+	return projectile
 
 func _on_green_plant_projectile_requested(origin: Vector2, directions: Array[Vector2]) -> void:
 	if player.dead:
@@ -1520,12 +1555,14 @@ func _live_pursuing_plant_count() -> int:
 			count += 1
 	return count
 
-func _create_pursuing_plant(cell: Vector2i, restored_state: Dictionary = {}, force_green: bool = false) -> MeadowPursuingPlant:
+func _create_pursuing_plant(cell: Vector2i, restored_state: Dictionary = {}, force_green: bool = false, force_mutation: bool = false) -> MeadowPursuingPlant:
 	if not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
 		return null
-	var is_mutation := bool(restored_state.get("mutated", false))
-	if restored_state.is_empty() and not force_green:
-		is_mutation = game_state.green_plantings_since_mutation >= 9 or randf() < 0.1
+	var is_mutation := force_mutation
+	if not force_mutation:
+		is_mutation = bool(restored_state.get("mutated", false))
+		if restored_state.is_empty():
+			is_mutation = game_state.green_plantings_since_mutation >= 9 or randf() < 0.1
 	var plant: MeadowPursuingPlant = MeadowMutatedPlant.new() if is_mutation else MeadowPursuingPlant.new()
 	plants.add_child(plant)
 	plant.global_position = world.to_global(world.cell_to_world(cell))
@@ -1572,8 +1609,8 @@ func _create_saxaul_boss(
 		_show_saxaul_boss_bar()
 	return tree
 
-func _create_orange_cactus(cell: Vector2i, restored_state: Dictionary = {}) -> MeadowOrangeCactus:
-	if not world.supports_orange_farming() or not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
+func _create_orange_cactus(cell: Vector2i, restored_state: Dictionary = {}, force_spawn: bool = false) -> MeadowOrangeCactus:
+	if (not world.supports_orange_farming() and not force_spawn) or not world.is_cell_in_bounds(cell) or not is_instance_valid(plants) or not _can_add_persisted_plant():
 		return null
 	var cactus := MeadowOrangeCactus.new()
 	plants.add_child(cactus)
@@ -1843,15 +1880,20 @@ func _update_water_encounter(delta: float) -> void:
 		_spawn_lake_monster()
 
 func _spawn_sky_boss() -> void:
-	if not world.get_map_id() == &"greenmeadow" or is_instance_valid(sky_boss):
+	if not world.get_map_id() == &"greenmeadow" \
+	or is_instance_valid(sky_boss) \
+	or game_state.has_defeated_boss(BOSS_SKY):
 		return
-	var boss := MeadowLakeMonster.new()
+	var boss: MeadowFinalBoss = FINAL_BOSS_SCRIPT.new()
 	boss.entity_id = _next_entity_id("sky_boss")
-	boss.setup(player, world, world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
+	boss.setup(player, world)
+	boss.projectile_requested.connect(_on_final_boss_projectile_requested)
+	boss.summon_requested.connect(_on_final_boss_summon_requested)
 	boss.died.connect(_on_sky_boss_died)
 	boss.health_changed.connect(_on_sky_boss_health_changed)
 	world.add_child(boss)
 	sky_boss = boss
+	boss.global_position = world.to_global(world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
 	boss_title.text = _msg("FALLEN WORLD BOSS", "天降世界 Boss")
 	_on_sky_boss_health_changed(boss.health, boss.MAX_HEALTH)
 	boss_bar.show()
@@ -1859,7 +1901,55 @@ func _spawn_sky_boss() -> void:
 	var fall_tween := create_tween()
 	fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	fall_tween.tween_property(boss, "global_position", landing, 1.2)
+	fall_tween.tween_callback(boss.activate)
 	_show_toast(_msg("Something is falling from the sky!", "有什么东西从天上掉下来了！"))
+
+func _on_final_boss_projectile_requested(origin: Vector2, direction: Vector2, speed: float, _homing: bool) -> void:
+	if not is_instance_valid(sky_boss) or sky_boss.dead:
+		return
+	var projectile := _spawn_projectile(origin, direction, WORLD_MASK | PLAYER_MASK, 1, sky_boss, Color("#e24e4e"), speed)
+	projectile.set_max_range(FINAL_BOSS_BULLET_RANGE)
+
+func _on_final_boss_summon_requested(phase: int) -> void:
+	if not is_instance_valid(sky_boss):
+		return
+	if phase == 2:
+		_spawn_final_boss_peas(9, false)
+		_show_toast(_msg("The final boss summoned pea minions!", "最终 Boss 召唤了豌豆！"))
+	elif phase == 3:
+		_spawn_final_boss_peas(9, true)
+		_spawn_final_boss_cacti(15)
+		_show_toast(_msg("Golden peas and cacti have joined the battle!", "黄金豌豆和仙人掌加入了战斗！"))
+
+func _spawn_final_boss_peas(count: int, golden: bool) -> void:
+	var reserved := {}
+	for _index in range(count):
+		var cell := _get_random_final_boss_cell(reserved)
+		if cell.x < 0:
+			continue
+		reserved[cell] = true
+		_create_pursuing_plant(cell, {}, false, golden)
+
+func _spawn_final_boss_cacti(count: int) -> void:
+	var reserved := {}
+	for _index in range(count):
+		var cell := _get_random_final_boss_cell(reserved)
+		if cell.x < 0:
+			continue
+		reserved[cell] = true
+		_create_orange_cactus(cell, {}, true)
+
+func _get_random_final_boss_cell(reserved: Dictionary) -> Vector2i:
+	for attempt in range(100):
+		var cell := Vector2i(
+			randi_range(1, MeadowWorld.MAP_SIZE.x - 2),
+			randi_range(1, MeadowWorld.MAP_SIZE.y - 2)
+		)
+		if reserved.has(cell) or world.is_prop_cell(cell) or world.farm_tiles.has(cell):
+			continue
+		if world.is_valid_farm_cell(cell) and world.is_position_unoccupied(world.cell_to_world(cell)):
+			return cell
+	return Vector2i(-1, -1)
 
 func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	_set_boss_health(current, maximum)
@@ -1869,6 +1959,10 @@ func _on_sky_boss_died(global_position: Vector2) -> void:
 	if is_instance_valid(sky_boss):
 		sky_boss.set_meta("death_handled", true)
 		sky_boss = null
+	if game_state.record_boss_defeat(BOSS_SKY):
+		_award_boss_energy()
+		_update_bottle_hud()
+		_show_toast(_msg("The World Tree received 50 energy.", "世界树获得了 50 点能量。"))
 	_play_boss_death_feedback(global_position)
 	_show_toast(_msg("The fallen World Boss has been defeated.", "天降世界 Boss 已被击败。"))
 	_mark_save_dirty()
@@ -2098,7 +2192,8 @@ func _respawn_player() -> void:
 
 func _award_boss_energy() -> void:
 	game_state.energy = mini(100, game_state.energy + 50)
-	# Energy remains gameplay state but is intentionally not shown in the top bar.
+	game_state.container_energy = mini(100, game_state.container_energy + 50)
+	# Keep both legacy energy and the container's persisted progression in sync.
 	_mark_save_dirty()
 
 func _refresh_coins() -> void:
@@ -2190,6 +2285,7 @@ func _clear_runtime_entities() -> void:
 		plant_entities.clear()
 		lake_monster = null
 		saxaul_boss = null
+		sky_boss = null
 		saxaul_vines.clear()
 		return
 	for child in plants.get_children():
@@ -2197,11 +2293,13 @@ func _clear_runtime_entities() -> void:
 		or child is MeadowOrangeCactus \
 		or child is MeadowLakeMonster \
 		or child is MeadowSaxaulBoss \
+		or child is MeadowFinalBoss \
 		or child.get_script() == SAXAUL_VINE_SCRIPT:
 			child.free()
 	plant_entities.clear()
 	lake_monster = null
 	saxaul_boss = null
+	sky_boss = null
 	saxaul_vines.clear()
 
 func _restore_map_state(snapshot: Dictionary) -> void:

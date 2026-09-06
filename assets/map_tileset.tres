@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://b5tje0qq10xm3" path="res://assets/map_tiles.png" id="1_tiles"]
 [ext_resource type="Texture2D" uid="uid://cd4gh2rqn0myi" path="res://assets/stone1.png" id="2_stone"]
+[ext_resource type="Texture2D" uid="uid://d1bt1qd7ktsi0" path="res://assets/POOR.png" id="3_poor"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_map_tiles"]
 texture = ExtResource("1_tiles")
@@ -66,6 +67,19 @@ texture = ExtResource("1_tiles")
 texture = ExtResource("2_stone")
 0:0/0 = 0
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_poor"]
+texture = ExtResource("3_poor")
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+0:1/0 = 0
+1:1/0 = 0
+2:1/0 = 0
+0:2/0 = 0
+1:2/0 = 0
+2:2/0 = 0
+
 [resource]
 sources/0 = SubResource("TileSetAtlasSource_map_tiles")
 sources/1 = SubResource("TileSetAtlasSource_stone")
+sources/2 = SubResource("TileSetAtlasSource_poor")
