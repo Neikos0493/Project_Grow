@@ -32,6 +32,7 @@ const CHARACTER_SHEETS := {
 @onready var character_sprite: AnimatedSprite2D = $CharacterSprite
 
 var hit_sound_player: AudioStreamPlayer
+var controls_locked := false
 var facing := Vector2.DOWN
 var health := MAX_HEALTH
 var dead := false
@@ -115,7 +116,7 @@ func _update_character_animation() -> void:
 	if not is_instance_valid(character_sprite) or character_sprite.sprite_frames == null:
 		return
 	var direction := _cardinal_direction(facing)
-	var moving := velocity.length_squared() > 20.0 and not controls_locked and not dead
+	var moving: bool = velocity.length_squared() > 20.0 and not controls_locked and not dead
 	var animation_name := ("walk_" if moving else "idle_") + direction
 	if character_sprite.animation != animation_name:
 		character_sprite.play(animation_name)
