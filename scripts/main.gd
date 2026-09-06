@@ -43,6 +43,12 @@ const SAXAUL_VINE_SCRIPT = preload("res://scripts/saxaul_vine.gd")
 const TREE_LASER_SCRIPT = preload("res://scripts/tree_laser.gd")
 const FINAL_BOSS_SCRIPT = preload("res://scripts/final_boss.gd")
 const FINAL_BOSS_BULLET_RANGE := 150.0 * MeadowWorld.TILE_SIZE
+const SHOP_TRANSACTION_SOUND := preload("res://sound/交易音效.mp3")
+const MENU_CLICK_SOUND := preload("res://sound/主页面和ESC页面点击音效.mp3")
+const BOSS_DEATH_SOUND := preload("res://sound/BOSS死亡，结束音效.mp3")
+const WATER_LILY_SPAWN_SOUND := preload("res://sound/图一BOSS睡莲生成音效.mp3")
+const FINAL_BOSS_PHASE_SOUND := preload("res://sound/最终BOSS第一个血条清空后转阶段播放这个.mp3")
+const TREE_GUN_FIRE_SOUND := preload("res://sound/神树蓄力疫一秒后发射的激光用这个.mp3")
 const BOTTLE_TEXTURES := [
 	preload("res://assets/generated/bottle/bottle.png"),
 	preload("res://assets/generated/bottle/bottle_half.png"),
@@ -139,11 +145,41 @@ var _show_radar_unlock_toast_on_close := false
 var _dialogue_choice_context := ""
 var _saxaul_failure_seed_returned := false
 var _pending_world_tree_boss_drop := false
+var _shop_transaction_player: AudioStreamPlayer
+var _menu_click_player: AudioStreamPlayer
+var _boss_death_player: AudioStreamPlayer
+var _water_lily_spawn_player: AudioStreamPlayer
+var _final_boss_phase_player: AudioStreamPlayer
+var _tree_gun_fire_player: AudioStreamPlayer
 
 @onready var game_state: Node = get_node("/root/GameState")
 
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
+	_shop_transaction_player = AudioStreamPlayer.new()
+	_shop_transaction_player.stream = SHOP_TRANSACTION_SOUND
+	_shop_transaction_player.volume_db = -2.0
+	add_child(_shop_transaction_player)
+	_menu_click_player = AudioStreamPlayer.new()
+	_menu_click_player.stream = MENU_CLICK_SOUND
+	_menu_click_player.volume_db = -2.0
+	add_child(_menu_click_player)
+	_boss_death_player = AudioStreamPlayer.new()
+	_boss_death_player.stream = BOSS_DEATH_SOUND
+	_boss_death_player.volume_db = 0.0
+	add_child(_boss_death_player)
+	_water_lily_spawn_player = AudioStreamPlayer.new()
+	_water_lily_spawn_player.stream = WATER_LILY_SPAWN_SOUND
+	_water_lily_spawn_player.volume_db = 0.0
+	add_child(_water_lily_spawn_player)
+	_final_boss_phase_player = AudioStreamPlayer.new()
+	_final_boss_phase_player.stream = FINAL_BOSS_PHASE_SOUND
+	_final_boss_phase_player.volume_db = 0.0
+	add_child(_final_boss_phase_player)
+	_tree_gun_fire_player = AudioStreamPlayer.new()
+	_tree_gun_fire_player.stream = TREE_GUN_FIRE_SOUND
+	_tree_gun_fire_player.volume_db = 0.0
+	add_child(_tree_gun_fire_player)
 	_load_language()
 	inventory.set_language(language)
 	shop_panel.set_language(language)
@@ -210,7 +246,9 @@ func _configure_shared_ui() -> void:
 	bottle_overlay.hide()
 	bottle_button.pressed.connect(_open_bottle_overlay)
 	bottle_overlay.gui_input.connect(_on_bottle_overlay_gui_input)
+	pause_resume_button.pressed.connect(_play_menu_click_sound)
 	pause_resume_button.pressed.connect(_resume_game)
+	pause_menu_button.pressed.connect(_play_menu_click_sound)
 	pause_menu_button.pressed.connect(_return_to_menu)
 	_apply_pause_language()
 	inventory_sell_tooltip.hide()
@@ -314,6 +352,10 @@ func _apply_pause_language() -> void:
 	pause_title.text = _msg("PAUSED", "游戏暂停")
 	pause_resume_button.text = _msg("RESUME", "继续游戏")
 	pause_menu_button.text = _msg("MAIN MENU", "返回主菜单")
+
+func _play_menu_click_sound() -> void:
+	if is_instance_valid(_menu_click_player):
+		_menu_click_player.play()
 
 func _set_paused(value: bool) -> void:
 	_clear_held_fire()
@@ -533,6 +575,8 @@ func _update_auto_fire(delta: float) -> void:
 			return
 		var muzzle_position: Vector2 = held_weapon.call("get_muzzle_global_position")
 		if not is_instance_valid(tree_laser):
+			if is_instance_valid(_tree_gun_fire_player):
+				_tree_gun_fire_player.play()
 			tree_laser = TREE_LASER_SCRIPT.new()
 			projectiles.add_child(tree_laser)
 			tree_laser.setup(
@@ -1117,6 +1161,8 @@ func _on_buy_pressed(item_id: String) -> void:
 		return
 	coins -= price
 	_refresh_coins()
+	if is_instance_valid(_shop_transaction_player):
+		_shop_transaction_player.play()
 	_mark_save_dirty()
 	_show_toast(_msg("Bought %s for %d coins." % [inventory.get_item_name(item_id), price], "购买了 %s，花费 %d 金币。" % [inventory.get_item_name(item_id), price]))
 
@@ -1798,6 +1844,10 @@ func _clear_saxaul_vines() -> void:
 			vine.queue_free()
 	saxaul_vines.clear()
 
+func _play_boss_death_sound() -> void:
+	if is_instance_valid(_boss_death_player):
+		_boss_death_player.play()
+
 func _on_saxaul_died(cell: Vector2i, global_position: Vector2) -> void:
 	_clear_saxaul_vines()
 	boss_bar.hide()
@@ -1806,6 +1856,7 @@ func _on_saxaul_died(cell: Vector2i, global_position: Vector2) -> void:
 			_prepare_saxaul_spread(cell)
 		return
 	game_state.record_boss_defeat(BOSS_SAXAUL)
+	_play_boss_death_sound()
 	_award_boss_energy()
 	_update_bottle_hud()
 	_play_boss_death_feedback(global_position)
@@ -1901,6 +1952,7 @@ func _spawn_sky_boss() -> void:
 	boss.setup(player, world)
 	boss.projectile_requested.connect(_on_final_boss_projectile_requested)
 	boss.summon_requested.connect(_on_final_boss_summon_requested)
+	boss.phase_changed.connect(_on_final_boss_phase_changed)
 	boss.died.connect(_on_sky_boss_died)
 	boss.health_changed.connect(_on_sky_boss_health_changed)
 	world.add_child(boss)
@@ -1963,6 +2015,10 @@ func _get_random_final_boss_cell(reserved: Dictionary) -> Vector2i:
 			return cell
 	return Vector2i(-1, -1)
 
+func _on_final_boss_phase_changed(phase: int) -> void:
+	if phase in [2, 3] and is_instance_valid(_final_boss_phase_player):
+		_final_boss_phase_player.play()
+
 func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	_set_boss_health(current, maximum)
 
@@ -1996,6 +2052,8 @@ func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
 	if not restored_state.is_empty():
 		monster.restore_state(restored_state)
 	lake_monster = monster
+	if restored_state.is_empty() and is_instance_valid(_water_lily_spawn_player):
+		_water_lily_spawn_player.play()
 	boss_title.text = _msg("WATER LILY", "湖中睡莲")
 	_on_lake_monster_health_changed(monster.health, monster.MAX_HEALTH)
 	boss_bar.show()
@@ -2058,6 +2116,7 @@ func _on_lake_monster_died(global_position: Vector2) -> void:
 		return
 	if not game_state.record_boss_defeat(BOSS_LAKE):
 		return
+	_play_boss_death_sound()
 	_award_boss_energy()
 	world.clear_water_growth(water_root)
 	water_root = Vector2i(-1, -1)

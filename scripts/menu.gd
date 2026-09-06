@@ -1,6 +1,8 @@
 extends Control
 ## Main menu with single-slot Continue and confirmed New Game flows.
 
+const MENU_CLICK_SOUND := preload("res://sound/主页面和ESC页面点击音效.mp3")
+
 @onready var continue_button: Button = $Content/MenuPanel/Buttons/ContinueButton
 @onready var start_button: Button = $Content/MenuPanel/Buttons/StartButton
 @onready var how_to_play_button: Button = $Content/MenuPanel/Buttons/HowToPlayButton
@@ -16,15 +18,27 @@ extends Control
 var language := "zh"
 var has_save := false
 var starting := false
+var menu_click_player: AudioStreamPlayer
 
 func _ready() -> void:
+	menu_click_player = AudioStreamPlayer.new()
+	menu_click_player.stream = MENU_CLICK_SOUND
+	menu_click_player.volume_db = -2.0
+	add_child(menu_click_player)
+	continue_button.pressed.connect(_play_menu_click_sound)
 	continue_button.pressed.connect(_continue_game)
+	start_button.pressed.connect(_play_menu_click_sound)
 	start_button.pressed.connect(_request_new_game)
+	new_game_confirm.confirmed.connect(_play_menu_click_sound)
 	new_game_confirm.confirmed.connect(_start_new_game)
+	settings_button.pressed.connect(_play_menu_click_sound)
 	settings_button.pressed.connect(_toggle_settings)
+	quit_button.pressed.connect(_play_menu_click_sound)
 	quit_button.pressed.connect(_quit_game)
+	$SettingsPanel/Margin/VBox/CloseButton.pressed.connect(_play_menu_click_sound)
 	$SettingsPanel/Margin/VBox/CloseButton.pressed.connect(_toggle_settings)
 	fullscreen_toggle.toggled.connect(_set_fullscreen)
+	how_to_play_button.pressed.connect(_play_menu_click_sound)
 	how_to_play_button.pressed.connect(_show_controls)
 	language_option.item_selected.connect(_on_language_selected)
 	language_option.add_item("English")
@@ -37,6 +51,10 @@ func _ready() -> void:
 		continue_button.grab_focus()
 	else:
 		start_button.grab_focus()
+
+func _play_menu_click_sound() -> void:
+	if is_instance_valid(menu_click_player):
+		menu_click_player.play()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if starting:

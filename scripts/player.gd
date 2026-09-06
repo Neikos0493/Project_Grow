@@ -14,6 +14,7 @@ const MAX_HEALTH := 5
 const CHARACTER_FRAME_COUNT := 4
 const CHARACTER_ANIMATION_FPS := 8.0
 const OUT_OF_COMBAT_DELAY := 1.0
+const HIT_SOUND := preload("res://sound/角色受击音效.mp3")
 
 const CHARACTER_SHEETS := {
 	"idle_down": ["res://image/Character/character-wait-Sheet.png", 22, 31],
@@ -28,7 +29,7 @@ const CHARACTER_SHEETS := {
 
 @onready var character_sprite: AnimatedSprite2D = $CharacterSprite
 
-var controls_locked := false
+var hit_sound_player: AudioStreamPlayer
 var facing := Vector2.DOWN
 var health := MAX_HEALTH
 var dead := false
@@ -36,6 +37,10 @@ var time_since_damage := OUT_OF_COMBAT_DELAY
 
 func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	hit_sound_player = AudioStreamPlayer.new()
+	hit_sound_player.stream = HIT_SOUND
+	hit_sound_player.volume_db = -2.0
+	add_child(hit_sound_player)
 	_build_character_animations()
 	_update_character_animation()
 	queue_redraw()
@@ -142,6 +147,8 @@ func take_damage(amount: int = 1) -> bool:
 		return false
 	time_since_damage = 0.0
 	health = maxi(0, health - amount)
+	if is_instance_valid(hit_sound_player):
+		hit_sound_player.play()
 	health_changed.emit(health, MAX_HEALTH)
 	queue_redraw()
 	if health == 0:

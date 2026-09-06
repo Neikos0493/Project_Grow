@@ -4,6 +4,7 @@ extends CharacterBody2D
 
 signal projectile_requested(origin: Vector2, direction: Vector2, speed: float, homing: bool)
 signal summon_requested(phase: int)
+signal phase_changed(phase: int)
 signal health_changed(current: int, maximum: int)
 signal died(position: Vector2)
 
@@ -81,6 +82,7 @@ func _physics_process(delta: float) -> void:
 	var phase := _get_phase()
 	if phase != current_phase:
 		current_phase = phase
+		phase_changed.emit(phase)
 		if phase == 2 and not phase_two_summoned:
 			phase_two_summoned = true
 			summon_requested.emit(2)
