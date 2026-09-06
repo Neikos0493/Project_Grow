@@ -12,6 +12,7 @@ const CARD_HOVER_COLOR := Color("#634431")
 const CARD_OUTLINE := Color("#a87850")
 const GOLD := Color("#f3c969")
 const SWORD_TEXTURE := preload("res://image/sword/Sword.png")
+const HOE_TEXTURE := preload("res://image/hoe/sickle.png")
 const BEAN_SEED_TEXTURE := preload("res://image/shop/beanSeed.png")
 const BOW_TEXTURE := preload("res://assets/generated/weapons/forest_bow.png")
 const TREE_GUN_TEXTURE := preload("res://assets/generated/weapons/tree_gun.png")
@@ -68,6 +69,7 @@ func is_shop_product(item_id: String) -> bool:
 func _visible_product_ids() -> Array[String]:
 	var ids: Array[String] = ["bean_seed", "green_seed", "melee_weapon", "bow", "tree_gun"]
 	if beach_shop:
+		ids.append("hoe")
 		ids.append("orange_seed")
 		ids.append("sunglasses")
 	return ids
@@ -163,6 +165,9 @@ func _draw_item_icon(center: Vector2, icon: String) -> void:
 		draw_line(center + Vector2(0, 12), center + Vector2(0, -6), Color("#24523a"), 4.0)
 		draw_circle(center + Vector2(-6, -6), 7.0, Color("#4d9b55"))
 		draw_circle(center + Vector2(6, -4), 7.0, Color("#72c45f"))
+	elif icon == "hoe":
+		var icon_size := Vector2(42.0, 42.0 * HOE_TEXTURE.get_height() / HOE_TEXTURE.get_width())
+		draw_texture_rect(HOE_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)
 	elif icon == "melee_weapon":
 		var icon_size := Vector2(52.0, 52.0 * SWORD_TEXTURE.get_height() / SWORD_TEXTURE.get_width())
 		draw_texture_rect(SWORD_TEXTURE, Rect2(center - icon_size * 0.5, icon_size), false)

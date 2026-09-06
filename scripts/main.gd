@@ -1651,24 +1651,36 @@ func _on_orange_cactus_matured(cell: Vector2i) -> void:
 	_mark_save_dirty()
 
 func _on_orange_cactus_died(cell: Vector2i, global_position: Vector2) -> void:
-	_on_plant_died(cell, global_position, CACTUS_DROP)
+	game_state.cactus_kills_since_drop = mini(game_state.cactus_kills_since_drop + 1, 5)
+	var fruit_dropped: bool = game_state.cactus_kills_since_drop >= 5 or randf() < 0.2
+	if fruit_dropped:
+		game_state.cactus_kills_since_drop = 0
+		_on_plant_died(cell, global_position, CACTUS_DROP)
+	else:
+		_remove_plant_entity(cell)
+		_mark_save_dirty()
+		_show_toast(_msg("The cactus dropped nothing this time.", "这次仙人掌没有掉落物。"))
+	if randf() < 0.02:
+		_drop_plant_item(global_position, SUNGLASSES)
+		_show_toast(_msg("The cactus dropped sunglasses!", "仙人掌掉落了墨镜！"))
+
+func _remove_plant_entity(cell: Vector2i) -> void:
+	var plant_count := int(plant_entities.get(cell, 0))
+	if plant_count <= 1:
+		plant_entities.erase(cell)
+	elif plant_count > 1:
+		plant_entities[cell] = plant_count - 1
+
+func _drop_plant_item(global_position: Vector2, item_id: String) -> bool:
+	return world.add_drop(world.to_local(global_position), item_id, 1, 0)
 
 func _on_plant_died(
 	cell: Vector2i,
 	global_position: Vector2,
 	drop_item_id: String
 ) -> void:
-	var plant_count := int(plant_entities.get(cell, 0))
-	if plant_count == 1:
-		plant_entities.erase(cell)
-	elif plant_count > 1:
-		plant_entities[cell] = plant_count - 1
-	var dropped := world.add_drop(
-		world.to_local(global_position),
-		drop_item_id,
-		1,
-		0
-	)
+	_remove_plant_entity(cell)
+	var dropped := _drop_plant_item(global_position, drop_item_id)
 	_mark_save_dirty()
 	var item_name := inventory.get_item_name(drop_item_id)
 	if dropped:

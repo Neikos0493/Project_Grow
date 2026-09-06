@@ -65,6 +65,7 @@ var pea_npc_state := 0
 var pea_npc_transform_elapsed := 0.0
 var energy := 0
 var world_tree_energy := 0
+var cactus_kills_since_drop := 0
 
 func _ready() -> void:
 	if not session_initialized:
@@ -94,6 +95,7 @@ func reset_session() -> void:
 	pea_npc_transform_elapsed = 0.0
 	energy = 0
 	world_tree_energy = 0
+	cactus_kills_since_drop = 0
 
 func ensure_session() -> void:
 	if not session_initialized:
@@ -107,6 +109,7 @@ func capture_global(inventory: MeadowInventory, next_coins: int, health: int, ne
 	container_energy = clampi(container_energy, 0, 100)
 	energy = clampi(energy, 0, 100)
 	world_tree_energy = clampi(world_tree_energy, 0, 100)
+	cactus_kills_since_drop = clampi(cactus_kills_since_drop, 0, 4)
 	var valid_bosses: Array[StringName] = []
 	for boss_id in defeated_boss_ids:
 		if boss_id in KNOWN_BOSS_IDS and boss_id not in valid_bosses:
@@ -250,6 +253,7 @@ func _build_save_data() -> Dictionary:
 			"pea_npc_transform_elapsed": pea_npc_transform_elapsed,
 				"energy": energy,
 			"world_tree_energy": world_tree_energy,
+			"cactus_kills_since_drop": cactus_kills_since_drop,
 			"unlocked_map_ids": unlocked,
 		},
 		"maps": maps,
@@ -370,6 +374,7 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"pea_npc_transform_elapsed": normalized_pea_transform_elapsed,
 		"energy": clampi(int(data.get("energy", 0)), 0, 100),
 		"world_tree_energy": clampi(int(data.get("world_tree_energy", 0)), 0, 100),
+		"cactus_kills_since_drop": clampi(int(data.get("cactus_kills_since_drop", 0)), 0, 4),
 		"unlocked_map_ids": unlocked,
 	}
 
@@ -814,6 +819,7 @@ func _apply_valid_save(data: Dictionary) -> void:
 	world_tree_redemption_triggered = bool(global_data.get("world_tree_redemption_triggered", false))
 	energy = clampi(int(global_data.get("energy", 0)), 0, 100)
 	world_tree_energy = clampi(int(global_data.get("world_tree_energy", 0)), 0, 100)
+	cactus_kills_since_drop = clampi(int(global_data.get("cactus_kills_since_drop", 0)), 0, 4)
 	unlocked_map_ids.clear()
 	for value in global_data["unlocked_map_ids"]:
 		unlocked_map_ids.append(StringName(str(value)))
