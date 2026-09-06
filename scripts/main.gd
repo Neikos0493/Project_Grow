@@ -43,6 +43,7 @@ const SAXAUL_VINE_SCRIPT = preload("res://scripts/saxaul_vine.gd")
 const TREE_LASER_SCRIPT = preload("res://scripts/tree_laser.gd")
 const FINAL_BOSS_SCRIPT = preload("res://scripts/final_boss.gd")
 const FINAL_BOSS_BULLET_RANGE := 150.0 * MeadowWorld.TILE_SIZE
+const STORY_ANIMATION_SCRIPT = preload("res://scripts/story_animation.gd")
 const SHOP_TRANSACTION_SOUND := preload("res://sound/交易音效.mp3")
 const MENU_CLICK_SOUND := preload("res://sound/主页面和ESC页面点击音效.mp3")
 const BOSS_DEATH_SOUND := preload("res://sound/BOSS死亡，结束音效.mp3")
@@ -155,6 +156,10 @@ var _water_lily_spawn_player: AudioStreamPlayer
 var _final_boss_phase_player: AudioStreamPlayer
 var _tree_gun_fire_player: AudioStreamPlayer
 var _final_boss_music_player: AudioStreamPlayer
+var story_animation: MeadowStoryAnimation
+var final_boss_defeated := false
+var final_boss_minions: Array[Node] = []
+var ending_started := false
 
 @onready var game_state: Node = get_node("/root/GameState")
 
@@ -387,6 +392,7 @@ func _return_to_menu() -> void:
 func _process(delta: float) -> void:
 	if get_tree().paused or not is_instance_valid(world):
 		return
+	_check_final_boss_ending()
 	if traveling:
 		_clear_held_fire()
 		prompt_box.hide()
@@ -442,6 +448,8 @@ func _input(event: InputEvent) -> void:
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event == null or mouse_event.button_index != MOUSE_BUTTON_LEFT:
 		return
+	if is_instance_valid(story_animation):
+		return
 	if mouse_event.pressed:
 		if not get_tree().paused \
 		and not traveling \
@@ -480,6 +488,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event != null and mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed:
 		_clear_held_fire()
+	if is_instance_valid(story_animation):
+		return
 	if _is_escape(event):
 		if traveling or dialogue_box.is_open() or player.dead:
 			return
@@ -1965,6 +1975,9 @@ func _spawn_sky_boss(restored_state: Dictionary = {}) -> void:
 	boss.died.connect(_on_sky_boss_died)
 	boss.health_changed.connect(_on_sky_boss_health_changed)
 	world.add_child(boss)
+	final_boss_defeated = false
+	ending_started = false
+	final_boss_minions.clear()
 	sky_boss = boss
 	game_state.world_tree_redemption_triggered = true
 	if not restored_state.is_empty():
@@ -2025,7 +2038,9 @@ func _spawn_final_boss_peas(count: int, golden: bool) -> void:
 		if cell.x < 0:
 			continue
 		reserved[cell] = true
-		_create_pursuing_plant(cell, {}, false, golden)
+		var plant := _create_pursuing_plant(cell, {}, false, golden)
+		if is_instance_valid(plant):
+			final_boss_minions.append(plant)
 
 func _spawn_final_boss_cacti(count: int) -> void:
 	var reserved := {}
@@ -2034,7 +2049,9 @@ func _spawn_final_boss_cacti(count: int) -> void:
 		if cell.x < 0:
 			continue
 		reserved[cell] = true
-		_create_orange_cactus(cell, {}, true)
+		var cactus := _create_orange_cactus(cell, {}, true)
+		if is_instance_valid(cactus):
+			final_boss_minions.append(cactus)
 
 func _get_random_final_boss_cell(reserved: Dictionary) -> Vector2i:
 	for attempt in range(100):
@@ -2059,7 +2076,35 @@ func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	if is_instance_valid(sky_boss):
 		_mark_save_dirty()
 
+func _show_story_animation() -> void:
+	if is_instance_valid(story_animation):
+		return
+	story_animation = STORY_ANIMATION_SCRIPT.new()
+	$HUD.add_child(story_animation)
+	story_animation.finished.connect(_on_story_animation_finished)
+	player.controls_locked = true
+	story_animation.setup()
+
+func _on_story_animation_finished() -> void:
+	story_animation = null
+	if ending_started:
+		_return_to_menu()
+		return
+	if not player.dead:
+		player.controls_locked = false
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+
+func _check_final_boss_ending() -> void:
+	if not final_boss_defeated or ending_started:
+		return
+	for minion in final_boss_minions:
+		if is_instance_valid(minion) and not minion.is_queued_for_deletion():
+			return
+	ending_started = true
+	_show_story_animation()
+
 func _on_sky_boss_died(global_position: Vector2) -> void:
+	final_boss_defeated = true
 	if is_instance_valid(_final_boss_music_player):
 		_final_boss_music_player.stop()
 	boss_bar.hide()
