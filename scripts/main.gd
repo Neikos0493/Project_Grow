@@ -49,6 +49,9 @@ const BOSS_DEATH_SOUND := preload("res://sound/BOSS死亡，结束音效.mp3")
 const WATER_LILY_SPAWN_SOUND := preload("res://sound/图一BOSS睡莲生成音效.mp3")
 const FINAL_BOSS_PHASE_SOUND := preload("res://sound/最终BOSS第一个血条清空后转阶段播放这个.mp3")
 const TREE_GUN_FIRE_SOUND := preload("res://sound/神树蓄力疫一秒后发射的激光用这个.mp3")
+const FINAL_BOSS_MUSIC_PHASE_ONE := preload("res://sound/maou_bgm_fantasy10.mp3")
+const FINAL_BOSS_MUSIC_PHASE_TWO := preload("res://sound/maou_bgm_fantasy14.mp3")
+const FINAL_BOSS_MUSIC_PHASE_THREE := preload("res://sound/maou_bgm_fantasy15.mp3")
 const BOTTLE_TEXTURES := [
 	preload("res://assets/generated/bottle/bottle.png"),
 	preload("res://assets/generated/bottle/bottle_half.png"),
@@ -151,6 +154,7 @@ var _boss_death_player: AudioStreamPlayer
 var _water_lily_spawn_player: AudioStreamPlayer
 var _final_boss_phase_player: AudioStreamPlayer
 var _tree_gun_fire_player: AudioStreamPlayer
+var _final_boss_music_player: AudioStreamPlayer
 
 @onready var game_state: Node = get_node("/root/GameState")
 
@@ -180,6 +184,9 @@ func _ready() -> void:
 	_tree_gun_fire_player.stream = TREE_GUN_FIRE_SOUND
 	_tree_gun_fire_player.volume_db = 0.0
 	add_child(_tree_gun_fire_player)
+	_final_boss_music_player = AudioStreamPlayer.new()
+	_final_boss_music_player.volume_db = -6.0
+	add_child(_final_boss_music_player)
 	_load_language()
 	inventory.set_language(language)
 	shop_panel.set_language(language)
@@ -1961,6 +1968,7 @@ func _spawn_sky_boss() -> void:
 	boss_title.text = _msg("FALLEN WORLD BOSS", "天降世界 Boss")
 	_on_sky_boss_health_changed(boss.health, boss.MAX_HEALTH)
 	boss_bar.show()
+	_set_final_boss_music(1)
 	var landing := world.to_global(world.cell_to_world(Vector2i(20, 7)))
 	var fall_tween := create_tween()
 	fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -1984,6 +1992,24 @@ func _on_final_boss_summon_requested(phase: int) -> void:
 		_spawn_final_boss_peas(9, true)
 		_spawn_final_boss_cacti(15)
 		_show_toast(_msg("Golden peas and cacti have joined the battle!", "黄金豌豆和仙人掌加入了战斗！"))
+
+func _set_final_boss_music(phase: int) -> void:
+	if not is_instance_valid(_final_boss_music_player):
+		return
+	var next_stream: AudioStream
+	match phase:
+		2:
+			next_stream = FINAL_BOSS_MUSIC_PHASE_TWO
+		3:
+			next_stream = FINAL_BOSS_MUSIC_PHASE_THREE
+		_:
+			next_stream = FINAL_BOSS_MUSIC_PHASE_ONE
+	_final_boss_music_player.stop()
+	_final_boss_music_player.stream = next_stream
+	var mp3_stream := next_stream as AudioStreamMP3
+	if mp3_stream != null:
+		mp3_stream.loop = true
+	_final_boss_music_player.play()
 
 func _spawn_final_boss_peas(count: int, golden: bool) -> void:
 	var reserved := {}
@@ -2018,11 +2044,15 @@ func _get_random_final_boss_cell(reserved: Dictionary) -> Vector2i:
 func _on_final_boss_phase_changed(phase: int) -> void:
 	if phase in [2, 3] and is_instance_valid(_final_boss_phase_player):
 		_final_boss_phase_player.play()
+	if phase in [2, 3]:
+		_set_final_boss_music(phase)
 
 func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	_set_boss_health(current, maximum)
 
 func _on_sky_boss_died(global_position: Vector2) -> void:
+	if is_instance_valid(_final_boss_music_player):
+		_final_boss_music_player.stop()
 	boss_bar.hide()
 	if is_instance_valid(sky_boss):
 		sky_boss.set_meta("death_handled", true)
