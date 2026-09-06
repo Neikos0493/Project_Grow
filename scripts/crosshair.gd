@@ -11,8 +11,8 @@ func _process(_delta: float) -> void:
 
 func _draw() -> void:
 	var cursor := get_local_mouse_position()
-	var dark := Color(0.04, 0.08, 0.09, 0.88)
-	var bright := Color("#f7df91")
+	var dark := Color(0.0, 0.0, 0.0, 0.95)
+	var bright := Color.BLACK
 	var arms := 8.0
 	var gap := 3.0
 	# Dark under-strokes preserve visibility on both light and dark tiles.

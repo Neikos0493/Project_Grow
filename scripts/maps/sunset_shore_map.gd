@@ -6,7 +6,7 @@ const MAP_ID := &"sunset_shore"
 const PLAYER_START_CELL := Vector2i(14, 13)
 const SHOP_CELL := Vector2i(15, 9)
 const SHIP_CELL := Vector2i(20, 1)
-const BEACH_BACKDROP_TEXTURE := preload("res://assets/beach_backdrop.png")
+const DESERT_PYRAMID_BACKDROP_TEXTURE := preload("res://assets/desert_pyramid_backdrop.png")
 
 func get_map_id() -> StringName:
 	return MAP_ID
@@ -49,9 +49,6 @@ func _build_map() -> void:
 	for y in range(MAP_SIZE.y):
 		cells[y][0] = ROCK
 		cells[y][MAP_SIZE.x - 1] = ROCK
-	for y in range(1, MAP_SIZE.y - 1):
-		for x in range(26, MAP_SIZE.x - 1):
-			cells[y][x] = WATER
 	for x in range(2, 27):
 		cells[14][x] = PATH
 	for y in range(1, 15):
@@ -129,7 +126,7 @@ func _validate_map() -> void:
 		assert(not str(prop.get("id", "")).begins_with("greenmeadow."))
 
 func _draw_background() -> void:
-	draw_texture_rect_region(BEACH_BACKDROP_TEXTURE, Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), Rect2(0, 0, 1536, 300))
+	draw_texture_rect_region(DESERT_PYRAMID_BACKDROP_TEXTURE, Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), Rect2(0, 0, 1536, 300))
 	draw_rect(Rect2(0, -SCENIC_TOP_PIXELS, MAP_SIZE.x * TILE_SIZE, SCENIC_TOP_PIXELS), Color(1.0, 0.72, 0.4, 0.12), true)
 
 func _draw_scenery_after_tiles() -> void:
