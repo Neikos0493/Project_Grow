@@ -391,6 +391,18 @@ func try_add_to_slot(item_id: String, amount: int, slot_index: int) -> bool:
 	inventory_changed.emit()
 	return true
 
+func try_craft(input_item_id: String, input_amount: int, output_item_id: String, output_amount: int = 1) -> bool:
+	if input_item_id.is_empty() or output_item_id.is_empty() or input_amount <= 0 or output_amount <= 0:
+		return false
+	var candidate_slots: Array[Dictionary] = slots.duplicate(true)
+	if not _remove_from_slots(candidate_slots, input_item_id, input_amount):
+		return false
+	if not _add_to_slots(candidate_slots, output_item_id, output_amount):
+		return false
+	slots = candidate_slots
+	inventory_changed.emit()
+	return true
+
 func try_exchange(remove_item_id: String, add_item_id: String, amount: int = 1) -> bool:
 	if remove_item_id.is_empty() or add_item_id.is_empty() or amount <= 0:
 		return false

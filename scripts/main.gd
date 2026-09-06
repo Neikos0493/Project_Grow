@@ -1212,11 +1212,11 @@ func _refine_cactus_fruit() -> void:
 	var refined_count := int(cactus_count / 5)
 	if refined_count <= 0:
 		return
-	if inventory.try_exchange(CACTUS_DROP, PURE_CACTUS_DROP, refined_count):
+	if inventory.try_craft(CACTUS_DROP, refined_count * 5, PURE_CACTUS_DROP, refined_count):
 		_mark_save_dirty()
 		_show_toast(_msg(
-			"Five cactus fruits refined into 1 pure cactus fruit.",
-			"5 个仙人掌果实自动合成为 1 个纯净仙人掌果实。"
+			"Five cactus fruits refined into %d pure cactus fruit(s)." % refined_count,
+			"每 5 个仙人掌果实自动合成为 1 个纯净仙人掌果实，共合成 %d 个。" % refined_count
 		))
 
 func _on_fire_requested(origin: Vector2, direction: Vector2, requested_item_id: String = "") -> void:
