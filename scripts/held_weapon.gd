@@ -6,6 +6,11 @@ const BOW_TEXTURE := preload("res://assets/generated/weapons/forest_bow.png")
 const GUN_TEXTURE := preload("res://assets/generated/weapons/tree_gun.png")
 const BOW_SOURCE_RECT := Rect2(377, 8, 286, 821)
 const GUN_SOURCE_RECT := Rect2(40, 311, 330, 245)
+# The bow source art is left-facing. Keep this separate from the logical aim
+# direction so its string and the arrow share the same forward direction.
+const BOW_SOURCE_FORWARD := Vector2.LEFT
+const BOW_DRAW_ROTATION := deg_to_rad(-40.0)
+const GUN_SOURCE_FORWARD := Vector2.RIGHT
 
 var weapon_id := ""
 var aim_direction := Vector2.RIGHT
@@ -15,8 +20,15 @@ func set_weapon(value: String, direction: Vector2, charge: float = 0.0) -> void:
 	weapon_id = value
 	aim_direction = direction.normalized() if direction.length_squared() > 0.01 else Vector2.RIGHT
 	charge_elapsed = maxf(0.0, charge)
-	rotation = aim_direction.angle()
+	# Node2D rotation is applied around the source art. Compensate for each
+	# source's forward axis instead of assuming every weapon points +X.
+	rotation = aim_direction.angle() - _source_forward_angle(value)
 	queue_redraw()
+
+func _source_forward_angle(value: String) -> float:
+	if value == "bow":
+		return BOW_SOURCE_FORWARD.rotated(BOW_DRAW_ROTATION).angle()
+	return GUN_SOURCE_FORWARD.angle()
 
 func set_charge(value: float) -> void:
 	charge_elapsed = maxf(0.0, value)
