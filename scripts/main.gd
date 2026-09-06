@@ -1158,7 +1158,7 @@ func _on_buy_pressed(item_id: String) -> void:
 	if player.dead or not shop_open or not shop_panel.is_shop_product(item_id):
 		return
 	var price := inventory.get_buy_price(item_id)
-	if price <= 0:
+	if price < 0:
 		return
 	if coins < price:
 		_show_toast(_msg("Not enough coins.", "金币不足。"))
@@ -1949,13 +1949,15 @@ func _update_water_encounter(delta: float) -> void:
 	if water_emerge_elapsed >= WATER_EMERGE_DELAY:
 		_spawn_lake_monster()
 
-func _spawn_sky_boss() -> void:
+func _spawn_sky_boss(restored_state: Dictionary = {}) -> void:
 	if not world.get_map_id() == &"greenmeadow" \
 	or is_instance_valid(sky_boss) \
 	or game_state.has_defeated_boss(BOSS_SKY):
 		return
 	var boss: MeadowFinalBoss = FINAL_BOSS_SCRIPT.new()
-	boss.entity_id = _next_entity_id("sky_boss")
+	boss.entity_id = str(restored_state.get("entity_id", ""))
+	if boss.entity_id.is_empty():
+		boss.entity_id = _next_entity_id("sky_boss")
 	boss.setup(player, world)
 	boss.projectile_requested.connect(_on_final_boss_projectile_requested)
 	boss.summon_requested.connect(_on_final_boss_summon_requested)
@@ -1964,17 +1966,22 @@ func _spawn_sky_boss() -> void:
 	boss.health_changed.connect(_on_sky_boss_health_changed)
 	world.add_child(boss)
 	sky_boss = boss
-	boss.global_position = world.to_global(world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
-	boss_title.text = _msg("FALLEN WORLD BOSS", "天降世界 Boss")
+	game_state.world_tree_redemption_triggered = true
+	if not restored_state.is_empty():
+		boss.restore_state(restored_state)
+	else:
+		boss.global_position = world.to_global(world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
+	boss_title.text = _msg("MISTLETOE", "槲寄生")
 	_on_sky_boss_health_changed(boss.health, boss.MAX_HEALTH)
 	boss_bar.show()
 	_set_final_boss_music(1)
-	var landing := world.to_global(world.cell_to_world(Vector2i(20, 7)))
-	var fall_tween := create_tween()
-	fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	fall_tween.tween_property(boss, "global_position", landing, 1.2)
-	fall_tween.tween_callback(boss.activate)
-	_show_toast(_msg("Something is falling from the sky!", "有什么东西从天上掉下来了！"))
+	if restored_state.is_empty():
+		var landing := world.to_global(world.cell_to_world(Vector2i(20, 7)))
+		var fall_tween := create_tween()
+		fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		fall_tween.tween_property(boss, "global_position", landing, 1.2)
+		fall_tween.tween_callback(boss.activate)
+		_show_toast(_msg("Mistletoe is descending!", "槲寄生降临了！"))
 
 func _on_final_boss_projectile_requested(origin: Vector2, direction: Vector2, speed: float, _homing: bool) -> void:
 	if not is_instance_valid(sky_boss) or sky_boss.dead:
@@ -1987,11 +1994,11 @@ func _on_final_boss_summon_requested(phase: int) -> void:
 		return
 	if phase == 2:
 		_spawn_final_boss_peas(9, false)
-		_show_toast(_msg("The final boss summoned pea minions!", "最终 Boss 召唤了豌豆！"))
+		_show_toast(_msg("Mistletoe summoned pea minions!", "槲寄生召唤了豌豆！"))
 	elif phase == 3:
 		_spawn_final_boss_peas(9, true)
 		_spawn_final_boss_cacti(15)
-		_show_toast(_msg("Golden peas and cacti have joined the battle!", "黄金豌豆和仙人掌加入了战斗！"))
+		_show_toast(_msg("Mistletoe's golden peas and cacti have joined the battle!", "槲寄生的黄金豌豆和仙人掌加入了战斗！"))
 
 func _set_final_boss_music(phase: int) -> void:
 	if not is_instance_valid(_final_boss_music_player):
@@ -2049,6 +2056,8 @@ func _on_final_boss_phase_changed(phase: int) -> void:
 
 func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
 	_set_boss_health(current, maximum)
+	if is_instance_valid(sky_boss):
+		_mark_save_dirty()
 
 func _on_sky_boss_died(global_position: Vector2) -> void:
 	if is_instance_valid(_final_boss_music_player):
@@ -2062,7 +2071,7 @@ func _on_sky_boss_died(global_position: Vector2) -> void:
 		_update_bottle_hud()
 		_show_toast(_msg("The World Tree received 50 energy.", "世界树获得了 50 点能量。"))
 	_play_boss_death_feedback(global_position)
-	_show_toast(_msg("The fallen World Boss has been defeated.", "天降世界 Boss 已被击败。"))
+	_show_toast(_msg("Mistletoe has been defeated.", "槲寄生已被击败。"))
 	_mark_save_dirty()
 
 func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
@@ -2293,8 +2302,8 @@ func _respawn_player() -> void:
 
 func _award_boss_energy() -> void:
 	game_state.energy = mini(100, game_state.energy + 50)
-	game_state.container_energy = mini(100, game_state.container_energy + 50)
-	# Keep both legacy energy and the container's persisted progression in sync.
+	# record_boss_defeat() updates the persisted container from the defeated-boss count.
+	# Do not add to it again here, or the first boss would make it appear full.
 	_mark_save_dirty()
 
 func _refresh_coins() -> void:
@@ -2345,6 +2354,9 @@ func _capture_map_state() -> Dictionary:
 		elif child is MeadowSaxaulBoss \
 		and not child.is_queued_for_deletion():
 			entity_states.append(child.capture_state())
+	if is_instance_valid(sky_boss) and not sky_boss.dead \
+	and not sky_boss.is_queued_for_deletion():
+		entity_states.append(sky_boss.capture_state())
 	result["entities"] = entity_states
 	result["encounter"] = _capture_encounter_state()
 	if world.supports_saxaul_encounter() \
@@ -2382,21 +2394,18 @@ func _clear_runtime_entities() -> void:
 	saxaul_spread_rings.clear()
 	saxaul_spread_index = 0
 	saxaul_spread_elapsed = 0.0
-	if not is_instance_valid(plants):
-		plant_entities.clear()
-		lake_monster = null
-		saxaul_boss = null
-		sky_boss = null
-		saxaul_vines.clear()
-		return
-	for child in plants.get_children():
-		if child is MeadowPursuingPlant \
-		or child is MeadowOrangeCactus \
-		or child is MeadowLakeMonster \
-		or child is MeadowSaxaulBoss \
-		or child is MeadowFinalBoss \
-		or child.get_script() == SAXAUL_VINE_SCRIPT:
-			child.free()
+	if is_instance_valid(plants):
+		for child in plants.get_children():
+			if child is MeadowPursuingPlant \
+			or child is MeadowOrangeCactus \
+			or child is MeadowLakeMonster \
+			or child is MeadowSaxaulBoss \
+			or child.get_script() == SAXAUL_VINE_SCRIPT:
+				child.free()
+	if is_instance_valid(world):
+		for child in world.get_children():
+			if child is MeadowFinalBoss:
+				child.free()
 	plant_entities.clear()
 	lake_monster = null
 	saxaul_boss = null
@@ -2428,6 +2437,16 @@ func _restore_map_state(snapshot: Dictionary) -> void:
 			"saxaul_boss":
 				_saxaul_failure_seed_returned = false
 				_create_saxaul_boss(cell, entry)
+	for entry_value in restored_snapshot.get("entities", []):
+		if entry_value is Dictionary and str(entry_value.get("kind", "")) == "sky_boss":
+			_spawn_sky_boss(entry_value)
+	# Older saves recorded the redemption event but not the Boss entity. Recreate
+	# that promised encounter at a safe landing point instead of leaving a soft lock.
+	if world.get_map_id() == &"greenmeadow" \
+	and game_state.world_tree_redemption_triggered \
+	and not game_state.has_defeated_boss(BOSS_SKY) \
+	and not is_instance_valid(sky_boss):
+		_spawn_sky_boss()
 	if world.supports_lake_encounter():
 		_restore_encounter_state(restored_snapshot.get("encounter", {}))
 		if quest_state == QUEST_MONSTER_ACTIVE and not is_instance_valid(lake_monster):

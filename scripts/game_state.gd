@@ -458,6 +458,7 @@ func _normalize_map_state(map_id: StringName, data: Dictionary) -> Dictionary:
 	or result["saxaul_spread"] == null:
 		return {}
 	var saxaul_count := 0
+	var sky_boss_count := 0
 	var dead_saxaul := false
 	var ordinary_entity_count := 0
 	for entity_value in result["entities"]:
@@ -465,9 +466,11 @@ func _normalize_map_state(map_id: StringName, data: Dictionary) -> Dictionary:
 		if str(entity.get("kind", "")) == "saxaul_boss":
 			saxaul_count += 1
 			dead_saxaul = bool(entity.get("dead", false))
+		elif str(entity.get("kind", "")) == "sky_boss":
+			sky_boss_count += 1
 		else:
 			ordinary_entity_count += 1
-	if ordinary_entity_count > MAX_ENTITIES:
+	if sky_boss_count > 1 or ordinary_entity_count > MAX_ENTITIES:
 		return {}
 	if saxaul_count > 1 \
 	or (not result["saxaul_spread"].is_empty() \
@@ -569,10 +572,13 @@ func _normalize_entities(map_id: StringName, entries: Array) -> Variant:
 		var kind := str(value.get("kind", ""))
 		if kind != "pursuing_plant" \
 		and kind != "orange_cactus" \
-		and kind != "saxaul_boss":
+		and kind != "saxaul_boss" \
+		and kind != "sky_boss":
 			return null
 		if (kind == "orange_cactus" or kind == "saxaul_boss") \
 		and map_id != &"sunset_shore":
+			return null
+		if kind == "sky_boss" and map_id != &"greenmeadow":
 			return null
 		var entity_id := str(value.get("entity_id", ""))
 		var cell: Variant = _normalize_cell(value.get("cell", []))
@@ -580,7 +586,25 @@ func _normalize_entities(map_id: StringName, entries: Array) -> Variant:
 		if entity_id.is_empty() or seen_ids.has(entity_id) or cell == null or position == null:
 			return null
 		seen_ids[entity_id] = true
-		if kind == "pursuing_plant":
+		if kind == "sky_boss":
+			if cell != [20, 7]:
+				return null
+			result.append({
+				"kind": kind,
+				"entity_id": entity_id,
+				"cell": cell,
+				"position": position,
+				"health": clampi(int(value.get("health", MeadowFinalBoss.MAX_HEALTH)), 1, MeadowFinalBoss.MAX_HEALTH),
+				"active": bool(value.get("active", true)),
+				"fall_grace_remaining": clampf(float(value.get("fall_grace_remaining", MeadowFinalBoss.FALL_GRACE)), 0.0, MeadowFinalBoss.FALL_GRACE),
+				"attack_elapsed": clampf(float(value.get("attack_elapsed", 0.0)), 0.0, 10.0),
+				"rotation_angle": fmod(float(value.get("rotation_angle", 0.0)), TAU),
+				"current_phase": clampi(int(value.get("current_phase", 1)), 1, 3),
+				"phase_two_summoned": bool(value.get("phase_two_summoned", false)),
+				"phase_three_summoned": bool(value.get("phase_three_summoned", false)),
+				"contact_remaining": clampf(float(value.get("contact_remaining", 0.0)), 0.0, MeadowFinalBoss.CONTACT_COOLDOWN),
+			})
+		elif kind == "pursuing_plant":
 			result.append({
 				"kind": kind,
 				"mutated": bool(value.get("mutated", false)),

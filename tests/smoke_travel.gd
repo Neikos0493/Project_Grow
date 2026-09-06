@@ -20,6 +20,30 @@ func _initialize() -> void:
 		return
 	if not _expect(game_state == root.get_node("GameState"), "Travel test did not use the GameState autoload"):
 		return
+	var expected_prices := {
+		"bean_seed": [0, 0],
+		"green_seed": [25, 12],
+		"melee_weapon": [50, 25],
+		"bow": [300, 150],
+		"tree_gun": [1000, 500],
+		"hoe": [50, 25],
+		"orange_seed": [5, 2],
+		"sunglasses": [25, 12],
+	}
+	for item_id in expected_prices:
+		var prices: Array = expected_prices[item_id]
+		if not _expect(main.inventory.get_buy_price(item_id) == int(prices[0]), "%s buy price is incorrect" % item_id):
+			return
+		if not _expect(main.inventory.get_sell_price(item_id) == int(prices[1]), "%s sell price is incorrect" % item_id):
+			return
+	if not _expect(main.inventory.get_sell_price("cactus_drop") == 100, "Cactus fruit sell price changed unexpectedly"):
+		return
+	for item_id in [main.SMALL_SEED, main.GREEN_SEED, main.MELEE_WEAPON]:
+		if not _expect(main.shop_panel.is_shop_product(item_id), "Greenmeadow shop is missing %s" % item_id):
+			return
+	for item_id in [main.BOW, main.TREE_GUN]:
+		if not _expect(not main.shop_panel.is_shop_product(item_id), "Greenmeadow shop incorrectly sells %s" % item_id):
+			return
 	main.world.till(Vector2i(3, 3))
 	main.player.restore_state(3)
 	var source_plant := main._create_pursuing_plant(Vector2i(6, 6))
@@ -81,8 +105,9 @@ func _initialize() -> void:
 		return
 	if not _expect(main.world.get_shop_node() != null and main.shop == main.world.get_shop_node(), "Sunset Shore did not bind its own beach shop"):
 		return
-	if not _expect(main.shop_panel.is_shop_product(main.ORANGE_SEED), "Sunset Shore shop did not expose orange seeds"):
-		return
+	for item_id in [main.SMALL_SEED, main.GREEN_SEED, main.MELEE_WEAPON, main.BOW, main.TREE_GUN, main.HOE, main.ORANGE_SEED, main.SUNGLASSES]:
+		if not _expect(main.shop_panel.is_shop_product(item_id), "Sunset Shore shop is missing %s" % item_id):
+			return
 	if not _expect(not main.world.farm_tiles.has(Vector2i(3, 3)), "Greenmeadow farm state leaked into Sunset Shore"):
 		return
 	if not _expect(not main.map_host.is_runtime_suspended() and main.world.process_mode == Node.PROCESS_MODE_INHERIT, "Destination runtime did not resume after arrival"):
@@ -114,6 +139,8 @@ func _initialize() -> void:
 	main.world.till(Vector2i(3, 6))
 	await main._travel_to(&"greenmeadow")
 	if not _expect(main.world.get_map_id() == &"greenmeadow" and main.world.farm_tiles.has(Vector2i(3, 3)), "Greenmeadow farm state was not restored"):
+		return
+	if not _expect(not main.shop_panel.is_shop_product(main.BOW) and not main.shop_panel.is_shop_product(main.TREE_GUN), "Greenmeadow shop exposes second-map weapons after return"):
 		return
 	if not _expect(not main.world.farm_tiles.has(Vector2i(3, 6)), "Sunset Shore farm state leaked into Greenmeadow"):
 		return

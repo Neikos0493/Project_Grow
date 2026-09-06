@@ -326,6 +326,41 @@ static func _test_collection_limits(game_state: Node, payload: Dictionary, failu
 		_check(bool(monster.get("rush_should_stun", false)), "Lake monster rush stun flag survives DTO normalization", failures)
 		_check(is_equal_approx(float(monster.get("contact_damage_remaining", 0.0)), 0.25), "Lake monster contact cooldown survives DTO normalization", failures)
 		_check(not bool(monster.get("faces_left", true)), "Lake monster facing mirror survives DTO normalization", failures)
+	var sky_payload := payload.duplicate(true)
+	sky_payload["global"]["world_tree_redemption_triggered"] = true
+	sky_payload["maps"]["greenmeadow"]["entities"] = [_sky_boss_state()]
+	var normalized_sky: Dictionary = game_state._normalize_save(sky_payload)
+	_check(not normalized_sky.is_empty(), "An in-progress final Boss DTO is accepted", failures)
+	if not normalized_sky.is_empty():
+		var sky: Dictionary = normalized_sky["maps"]["greenmeadow"]["entities"][0]
+		_check(str(sky.get("kind", "")) == "sky_boss", "Final Boss identity survives DTO normalization", failures)
+		_check(int(sky.get("health", 0)) == MeadowFinalBoss.MAX_HEALTH - 10, "Final Boss health survives DTO normalization", failures)
+	var sky_wrong_map := payload.duplicate(true)
+	sky_wrong_map["maps"]["sunset_shore"]["entities"] = [_sky_boss_state()]
+	_check(game_state._normalize_save(sky_wrong_map).is_empty(), "Final Boss DTO is rejected on Sunset Shore", failures)
+	var sky_bad_cell := sky_payload.duplicate(true)
+	sky_bad_cell["maps"]["greenmeadow"]["entities"][0]["cell"] = [19, 7]
+	_check(game_state._normalize_save(sky_bad_cell).is_empty(), "Final Boss DTO rejects an invalid landing cell", failures)
+	var sky_duplicate := sky_payload.duplicate(true)
+	sky_duplicate["maps"]["greenmeadow"]["entities"].append(_sky_boss_state("greenmeadow:sky_boss:2"))
+	_check(game_state._normalize_save(sky_duplicate).is_empty(), "Duplicate final Boss DTOs are rejected", failures)
+
+static func _sky_boss_state(id: String = "greenmeadow:sky_boss:1") -> Dictionary:
+	return {
+		"kind": "sky_boss",
+		"entity_id": id,
+		"cell": [20, 7],
+		"position": [656.0, 240.0],
+		"health": MeadowFinalBoss.MAX_HEALTH - 10,
+		"active": true,
+		"fall_grace_remaining": 0.0,
+		"attack_elapsed": 0.3,
+		"rotation_angle": 1.2,
+		"current_phase": 1,
+		"phase_two_summoned": false,
+		"phase_three_summoned": false,
+		"contact_remaining": 0.0,
+	}
 
 static func _saxaul_state(dead: bool, id: String = "sunset_shore:saxaul_boss:1") -> Dictionary:
 	return {

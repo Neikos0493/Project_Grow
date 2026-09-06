@@ -119,12 +119,12 @@ grow_vertical = 2
 [node name="Kicker" type="Label" parent="Content"]
 layout_mode = 0
 offset_left = 24.0
-offset_top = 12.0
+offset_top = 122.0
 offset_right = 420.0
-offset_bottom = 34.0
+offset_bottom = 146.0
 theme_override_colors/font_color = Color(0.89, 0.73, 0.39, 1)
 theme_override_font_sizes/font_size = 13
-text = "A SMALL WORLD, WAITING TO GROW"
+text = "A WORLD IN NEED OF SAVING"
 
 [node name="Title" type="Label" parent="Content"]
 layout_mode = 0
@@ -137,17 +137,7 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.45)
 theme_override_constants/shadow_offset_x = 3
 theme_override_constants/shadow_offset_y = 4
 theme_override_font_sizes/font_size = 52
-text = "MEADOW"
-
-[node name="TitleAccent" type="Label" parent="Content"]
-layout_mode = 0
-offset_left = 24.0
-offset_top = 97.0
-offset_right = 460.0
-offset_bottom = 138.0
-theme_override_colors/font_color = Color(0.84, 0.93, 0.76, 1)
-theme_override_font_sizes/font_size = 24
-text = "PROTOTYPE"
+text = "How to grow"
 
 [node name="MenuPanel" type="PanelContainer" parent="Content"]
 layout_mode = 0
@@ -233,7 +223,7 @@ offset_right = 420.0
 offset_bottom = 500.0
 theme_override_colors/font_color = Color(0.78, 0.83, 0.73, 0.8)
 theme_override_font_sizes/font_size = 11
-text = "v0.1  /  A QUIET PLACE TO EXPLORE"
+text = "v0.11 STAY TUNED"
 
 [node name="Status" type="Label" parent="Content"]
 layout_mode = 0

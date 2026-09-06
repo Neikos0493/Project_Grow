@@ -50,6 +50,57 @@ func setup(new_target: MeadowPlayer, new_world: MeadowWorld) -> void:
 	collision_mask = WORLD_MASK | PLAYER_MASK
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 
+func capture_state() -> Dictionary:
+	var map_position := world.to_local(global_position) if is_instance_valid(world) else global_position
+	# Never persist the falling tween's off-map position. A close or autosave during
+	# the landing animation must resume as a playable, active encounter.
+	if not active:
+		map_position = world.cell_to_world(Vector2i(20, 7)) if is_instance_valid(world) else map_position
+	return {
+		"kind": "sky_boss",
+		"entity_id": entity_id,
+		"cell": [20, 7],
+		"position": [map_position.x, map_position.y],
+		"health": clampi(health, 1, MAX_HEALTH),
+		"active": true,
+		"fall_grace_remaining": FALL_GRACE if not active else clampf(fall_grace_remaining, 0.0, FALL_GRACE),
+		"attack_elapsed": 0.0 if not active else maxf(0.0, attack_elapsed),
+		"rotation_angle": 0.0 if not active else rotation_angle,
+		"current_phase": 1 if not active else clampi(current_phase, 1, 3),
+		"phase_two_summoned": false if not active else phase_two_summoned,
+		"phase_three_summoned": false if not active else phase_three_summoned,
+		"contact_remaining": 0.0 if not active else maxf(0.0, contact_remaining),
+	}
+
+func restore_state(data: Dictionary) -> void:
+	var fallback := world.cell_to_world(Vector2i(20, 7)) if is_instance_valid(world) else global_position
+	var value: Variant = data.get("position", [])
+	var map_position := fallback
+	if value is Array and value.size() == 2:
+		var candidate := Vector2(float(value[0]), float(value[1]))
+		if is_finite(candidate.x) and is_finite(candidate.y):
+			map_position = candidate
+	global_position = world.to_global(map_position) if is_instance_valid(world) else map_position
+	health = clampi(int(data.get("health", MAX_HEALTH)), 1, MAX_HEALTH)
+	active = bool(data.get("active", true))
+	fall_grace_remaining = clampf(float(data.get("fall_grace_remaining", FALL_GRACE)), 0.0, FALL_GRACE)
+	if not active:
+		active = true
+		fall_grace_remaining = FALL_GRACE
+	attack_elapsed = maxf(0.0, float(data.get("attack_elapsed", 0.0)))
+	rotation_angle = fmod(float(data.get("rotation_angle", 0.0)), TAU)
+	if rotation_angle < 0.0:
+		rotation_angle += TAU
+	current_phase = clampi(int(data.get("current_phase", _get_phase())), 1, 3)
+	phase_two_summoned = bool(data.get("phase_two_summoned", false))
+	phase_three_summoned = bool(data.get("phase_three_summoned", false))
+	contact_remaining = clampf(float(data.get("contact_remaining", 0.0)), 0.0, CONTACT_COOLDOWN)
+	dead = false
+	velocity = Vector2.ZERO
+	collision_layer = 4
+	collision_mask = WORLD_MASK | PLAYER_MASK
+	queue_redraw()
+
 func activate() -> void:
 	active = true
 	fall_grace_remaining = FALL_GRACE

@@ -105,7 +105,7 @@ func _start_new_game() -> void:
 	_set_buttons_disabled(true)
 	status_label.text = "正在进入绿野..." if language == "zh" else "LOADING GREENMEADOW..."
 	await get_tree().create_timer(0.16).timeout
-	get_tree().change_scene_to_file("res://Main.tscn")
+	get_tree().change_scene_to_file("res://NewGameIntro.tscn")
 
 func _set_buttons_disabled(disabled: bool) -> void:
 	continue_button.disabled = disabled or not has_save
@@ -143,16 +143,15 @@ func _load_language() -> void:
 
 func _apply_language() -> void:
 	var zh := language == "zh"
-	$Content/Kicker.text = "一方等待生长的小世界" if zh else "A SMALL WORLD, WAITING TO GROW"
-	$Content/Title.text = "草甸" if zh else "MEADOW"
-	$Content/TitleAccent.text = "原型" if zh else "PROTOTYPE"
+	$Content/Kicker.text = "一方亟待拯救的世界" if zh else "A WORLD IN NEED OF SAVING"
+	$Content/Title.text = "草生人间" if zh else "How to grow"
 	$Content/MenuPanel/Buttons/Header.text = "篝火已点亮。" if zh else "THE FIRES ARE LIT."
 	continue_button.text = "继续游戏" if zh else "CONTINUE"
 	start_button.text = "开始新游戏" if zh else "START NEW GAME"
 	how_to_play_button.text = "玩法说明" if zh else "HOW TO PLAY"
 	settings_button.text = "设置" if zh else "SETTINGS"
 	quit_button.text = "退出游戏" if zh else "QUIT TO DESKTOP"
-	$Content/Footer.text = "v0.1  /  一处宁静的探索之地" if zh else "v0.1  /  A QUIET PLACE TO EXPLORE"
+	$Content/Footer.text = "v0.11 敬请期待" if zh else "v0.11 STAY TUNED"
 	$SettingsPanel/Margin/VBox/Title.text = "设置" if zh else "SETTINGS"
 	$SettingsPanel/Margin/VBox/LanguageRow/Label.text = "语言" if zh else "LANGUAGE"
 	$SettingsPanel/Margin/VBox/MusicRow/Label.text = "环境音" if zh else "AMBIENT SOUND"
