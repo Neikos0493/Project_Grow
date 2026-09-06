@@ -6,7 +6,7 @@ var save_path := "user://autosave.json"
 var temp_path := "user://autosave.json.tmp"
 var backup_path := "user://autosave.json.bak"
 const MAX_SAVE_BYTES := 4 * 1024 * 1024
-const MAX_MAP_ENTRIES := 3
+const MAX_MAP_ENTRIES := 2
 const MAX_FARM_TILES := 960
 const MAX_WATER_GROWTH := 64
 const MAX_PERMANENT_GRASS := 960
@@ -17,7 +17,7 @@ const MAX_HEALTH := 5
 const PEA_TRANSFORM_DURATION := MeadowWorld.WORM_TRANSFORM_DURATION
 const QUEST_STATE_MIN := 0
 const QUEST_STATE_MAX := 4
-const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore", &"world_tree"]
+const KNOWN_MAP_IDS := [&"greenmeadow", &"sunset_shore"]
 const DEFAULT_UNLOCKED_MAP_IDS := [&"greenmeadow"]
 const KNOWN_BOSS_IDS := [&"lake_monster", &"saxaul_boss"]
 const LEGACY_ITEM_REPLACEMENTS := {
@@ -55,13 +55,13 @@ var last_load_used_backup := false
 var orange_seed_granted := false
 var green_plantings_since_mutation := 0
 var world_tree_blessing_unlocked := false
+var world_tree_redemption_triggered := false
 var defeated_boss_ids: Array[StringName] = []
 var container_energy := 0
 var sunflower_quest_state := 0
 var map_two_return_count := 0
 var pea_npc_state := 0
 var pea_npc_transform_elapsed := 0.0
-var world_tree_map_unlocked := false
 var energy := 0
 var world_tree_energy := 0
 
@@ -84,13 +84,13 @@ func reset_session() -> void:
 	orange_seed_granted = false
 	green_plantings_since_mutation = 0
 	world_tree_blessing_unlocked = false
+	world_tree_redemption_triggered = false
 	defeated_boss_ids.clear()
 	container_energy = 0
 	sunflower_quest_state = 0
 	map_two_return_count = 0
 	pea_npc_state = 0
 	pea_npc_transform_elapsed = 0.0
-	world_tree_map_unlocked = false
 	energy = 0
 	world_tree_energy = 0
 
@@ -240,14 +240,14 @@ func _build_save_data() -> Dictionary:
 			"orange_seed_granted": orange_seed_granted,
 			"green_plantings_since_mutation": green_plantings_since_mutation,
 			"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+			"world_tree_redemption_triggered": world_tree_redemption_triggered,
 			"defeated_boss_ids": _boss_ids_to_strings(),
 			"container_energy": container_energy,
 			"sunflower_quest_state": sunflower_quest_state,
 			"map_two_return_count": map_two_return_count,
 			"pea_npc_state": pea_npc_state,
 			"pea_npc_transform_elapsed": pea_npc_transform_elapsed,
-			"world_tree_map_unlocked": world_tree_map_unlocked,
-			"energy": energy,
+				"energy": energy,
 			"world_tree_energy": world_tree_energy,
 			"unlocked_map_ids": unlocked,
 		},
@@ -272,6 +272,8 @@ func _normalize_save(data: Dictionary) -> Dictionary:
 	if int(data.get("schema_version", -1)) != SCHEMA_VERSION:
 		return {}
 	var map_id := StringName(str(data.get("current_map_id", "")))
+	if map_id == &"world_tree":
+		map_id = &"greenmeadow"
 	if map_id not in KNOWN_MAP_IDS:
 		return {}
 	var global_value: Variant = data.get("global", {})
@@ -284,6 +286,8 @@ func _normalize_save(data: Dictionary) -> Dictionary:
 	var normalized_maps: Dictionary = {}
 	for key_value in maps_value.keys():
 		var key := str(key_value)
+		if StringName(key) == &"world_tree":
+			continue
 		if StringName(key) not in KNOWN_MAP_IDS or not maps_value[key_value] is Dictionary:
 			return {}
 		var normalized_map := _normalize_map_state(StringName(key), maps_value[key_value])
@@ -344,15 +348,10 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		)), 0.0, PEA_TRANSFORM_DURATION)
 	elif normalized_pea_npc_state == 2:
 		normalized_pea_transform_elapsed = PEA_TRANSFORM_DURATION
-	var world_tree_map_unlocked := bool(data.get("world_tree_map_unlocked", false))
 	if not world_tree_blessing_unlocked:
 		unlocked.erase(String(&"sunset_shore"))
 	elif String(&"sunset_shore") not in unlocked:
 		unlocked.append(String(&"sunset_shore"))
-	if not world_tree_map_unlocked:
-		unlocked.erase(String(&"world_tree"))
-	elif String(&"world_tree") not in unlocked:
-		unlocked.append(String(&"world_tree"))
 	return {
 		"inventory": normalized_inventory,
 		"coins": clampi(int(data.get("coins", 9999)), 0, MAX_COINS),
@@ -361,13 +360,13 @@ func _normalize_global(data: Dictionary) -> Dictionary:
 		"orange_seed_granted": bool(data.get("orange_seed_granted", false)),
 		"green_plantings_since_mutation": clampi(int(data.get("green_plantings_since_mutation", 0)), 0, 9),
 		"world_tree_blessing_unlocked": world_tree_blessing_unlocked,
+		"world_tree_redemption_triggered": bool(data.get("world_tree_redemption_triggered", false)),
 		"defeated_boss_ids": normalized_bosses,
 		"container_energy": clampi(int(data.get("container_energy", normalized_bosses.size() * 50)), 0, 100),
 		"sunflower_quest_state": clampi(int(data.get("sunflower_quest_state", 0)), 0, 2),
 		"map_two_return_count": clampi(int(data.get("map_two_return_count", 0)), 0, 2),
 		"pea_npc_state": normalized_pea_npc_state,
 		"pea_npc_transform_elapsed": normalized_pea_transform_elapsed,
-		"world_tree_map_unlocked": world_tree_map_unlocked,
 		"energy": clampi(int(data.get("energy", 0)), 0, 100),
 		"world_tree_energy": clampi(int(data.get("world_tree_energy", 0)), 0, 100),
 		"unlocked_map_ids": unlocked,
@@ -811,7 +810,7 @@ func _apply_valid_save(data: Dictionary) -> void:
 		)), 0.0, PEA_TRANSFORM_DURATION)
 	else:
 		pea_npc_transform_elapsed = PEA_TRANSFORM_DURATION if pea_npc_state == 2 else 0.0
-	world_tree_map_unlocked = bool(global_data.get("world_tree_map_unlocked", false))
+	world_tree_redemption_triggered = bool(global_data.get("world_tree_redemption_triggered", false))
 	energy = clampi(int(global_data.get("energy", 0)), 0, 100)
 	world_tree_energy = clampi(int(global_data.get("world_tree_energy", 0)), 0, 100)
 	unlocked_map_ids.clear()

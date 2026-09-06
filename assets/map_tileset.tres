@@ -1,6 +1,7 @@
 [gd_resource type="TileSet" format=3 uid="uid://d2x8p3svo11hp"]
 
 [ext_resource type="Texture2D" uid="uid://b5tje0qq10xm3" path="res://assets/map_tiles.png" id="1_tiles"]
+[ext_resource type="Texture2D" uid="uid://cd4gh2rqn0myi" path="res://assets/stone1.png" id="2_stone"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_map_tiles"]
 texture = ExtResource("1_tiles")
@@ -61,5 +62,10 @@ texture = ExtResource("1_tiles")
 6:6/0 = 0
 7:6/0 = 0
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_stone"]
+texture = ExtResource("2_stone")
+0:0/0 = 0
+
 [resource]
 sources/0 = SubResource("TileSetAtlasSource_map_tiles")
+sources/1 = SubResource("TileSetAtlasSource_stone")

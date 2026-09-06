@@ -7,7 +7,6 @@ signal map_changed(map: MeadowWorld)
 const MAP_SCENES := {
 	&"greenmeadow": preload("res://maps/Greenmeadow.tscn"),
 	&"sunset_shore": preload("res://maps/SunsetShore.tscn"),
-	&"world_tree": preload("res://maps/WorldTree.tscn"),
 }
 
 var active_map: MeadowWorld

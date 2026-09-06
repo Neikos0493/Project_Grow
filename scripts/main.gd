@@ -37,6 +37,7 @@ const SMALL_SEED := "bean_seed"
 const SUNGLASSES := "sunglasses"
 const BOSS_LAKE := &"lake_monster"
 const BOSS_SAXAUL := &"saxaul_boss"
+const BOSS_SKY := &"sky_boss"
 const SAXAUL_VINE_SCRIPT = preload("res://scripts/saxaul_vine.gd")
 const TREE_LASER_SCRIPT = preload("res://scripts/tree_laser.gd")
 const BOTTLE_TEXTURES := [
@@ -116,6 +117,7 @@ var water_spread_index := 0
 var water_emerge_elapsed := 0.0
 var lake_monster: MeadowLakeMonster
 var saxaul_boss: MeadowSaxaulBoss
+var sky_boss: MeadowLakeMonster
 var saxaul_vines: Array[StaticBody2D] = []
 var saxaul_spread_active := false
 var saxaul_spread_rings: Array = []
@@ -132,6 +134,7 @@ var _closing := false
 var _show_radar_unlock_toast_on_close := false
 var _dialogue_choice_context := ""
 var _saxaul_failure_seed_returned := false
+var _pending_world_tree_boss_drop := false
 
 @onready var game_state: Node = get_node("/root/GameState")
 
@@ -743,36 +746,27 @@ func _open_world_tree_dialogue() -> void:
 	_clear_inventory_sell_tooltip()
 	var lines: Array[String] = []
 	var energy_delivered := 0
-	if not game_state.world_tree_map_unlocked and game_state.energy > 0:
+	if game_state.energy > 0 and game_state.world_tree_energy < 100:
 		energy_delivered = game_state.energy
 		game_state.energy = 0
 		game_state.world_tree_energy = mini(100, game_state.world_tree_energy + energy_delivered)
-		if game_state.world_tree_energy >= 100:
-			game_state.world_tree_map_unlocked = true
-			if &"world_tree" not in game_state.unlocked_map_ids:
-				game_state.unlocked_map_ids.append(&"world_tree")
-			lines.append(_msg(
-				"The World Tree reaches 100 energy. Its inner realm is now open on the radar.",
-				"世界树能量达到 100 点，内在领域现在已在雷达上开放。"
-			))
-		else:
-			lines.append(_msg(
-				"The World Tree accepted %d energy. Bring more Boss energy to reach 100." % energy_delivered,
-				"世界树吸收了 %d 点能量。继续收集 Boss 能量，直到达到 100 点。" % energy_delivered
-			))
-	if lines.is_empty():
-		if game_state.world_tree_map_unlocked:
-			lines.append(_msg(
-				"The World Tree is fully charged. Its inner realm is open on the radar.",
-				"世界树已经充满能量，内在领域已在雷达上开放。"
-			))
-		elif game_state.energy <= 0:
-			lines.append(_msg(
-				"Defeat Bosses and bring their energy here.",
-				"击败 Boss 后把能量带到这里。"
-			))
-	# Energy remains gameplay state but is intentionally not shown in the top bar.
-	if energy_delivered > 0:
+		lines.append(_msg(
+			"The World Tree accepted %d energy." % energy_delivered,
+			"世界树吸收了 %d 点能量。" % energy_delivered
+		))
+	if game_state.world_tree_energy >= 100 and not game_state.world_tree_redemption_triggered:
+		game_state.world_tree_redemption_triggered = true
+		_pending_world_tree_boss_drop = true
+		lines.append(_msg(
+			"Has the World Tree found redemption... or has it?",
+			"世界树得到了救赎...吗？"
+		))
+	elif lines.is_empty():
+		lines.append(_msg(
+			"Defeat Bosses and bring their energy here.",
+			"击败 Boss 后把能量带到这里。"
+		))
+	if energy_delivered > 0 or _pending_world_tree_boss_drop:
 		_mark_save_dirty()
 	dialogue_box.open_dialogue(
 		_msg("World Tree", "世界树"),
@@ -871,6 +865,9 @@ func _on_dialogue_closed() -> void:
 		_show_radar_unlock_toast_on_close = false
 		_show_toast("雷达上出现了新的地点")
 		radar_panel.set_navigation_state(world.get_map_id(), game_state.unlocked_map_ids)
+	if _pending_world_tree_boss_drop:
+		_pending_world_tree_boss_drop = false
+		_spawn_sky_boss()
 
 func _open_radar() -> void:
 	_clear_held_fire()
@@ -890,10 +887,6 @@ func _close_radar() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
 
 func _on_radar_point_selected(map_id: StringName) -> void:
-	if map_id == &"world_tree" and map_id not in game_state.unlocked_map_ids:
-		_close_radar()
-		_show_toast(_msg("This destination has not been revealed yet.", "这个地点还未在雷达上显现。"))
-		return
 	if map_id == world.get_map_id():
 		_close_radar()
 		_show_toast(_msg("This destination is already in range.", "当前已在此目的地。"))
@@ -1002,13 +995,13 @@ func _capture_game_state_memory() -> Dictionary:
 		"map_states": game_state.map_states.duplicate(true),
 		"entry_mode": game_state.entry_mode,
 		"world_tree_blessing_unlocked": game_state.world_tree_blessing_unlocked,
+		"world_tree_redemption_triggered": game_state.world_tree_redemption_triggered,
 		"defeated_boss_ids": game_state.defeated_boss_ids.duplicate(),
 		"container_energy": game_state.container_energy,
 		"sunflower_quest_state": game_state.sunflower_quest_state,
 		"map_two_return_count": game_state.map_two_return_count,
 		"pea_npc_state": game_state.pea_npc_state,
 		"pea_npc_transform_elapsed": game_state.pea_npc_transform_elapsed,
-		"world_tree_map_unlocked": game_state.world_tree_map_unlocked,
 		"energy": game_state.energy,
 		"world_tree_energy": game_state.world_tree_energy,
 	}
@@ -1026,6 +1019,7 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 	game_state.map_states = state.get("map_states", {}).duplicate(true)
 	game_state.entry_mode = str(state.get("entry_mode", game_state.entry_mode))
 	game_state.world_tree_blessing_unlocked = bool(state.get("world_tree_blessing_unlocked", game_state.world_tree_blessing_unlocked))
+	game_state.world_tree_redemption_triggered = bool(state.get("world_tree_redemption_triggered", game_state.world_tree_redemption_triggered))
 	game_state.defeated_boss_ids.clear()
 	for value in state.get("defeated_boss_ids", []):
 		var boss_id := StringName(str(value))
@@ -1039,7 +1033,6 @@ func _restore_game_state_memory(state: Dictionary) -> void:
 		"pea_npc_transform_elapsed",
 		game_state.pea_npc_transform_elapsed
 	)), 0.0, MeadowWorld.WORM_TRANSFORM_DURATION)
-	game_state.world_tree_map_unlocked = bool(state.get("world_tree_map_unlocked", game_state.world_tree_map_unlocked))
 	game_state.energy = clampi(int(state.get("energy", game_state.energy)), 0, 100)
 	game_state.world_tree_energy = clampi(int(state.get("world_tree_energy", game_state.world_tree_energy)), 0, 100)
 	_update_bottle_hud()
@@ -1832,6 +1825,37 @@ func _update_water_encounter(delta: float) -> void:
 	water_emerge_elapsed += delta
 	if water_emerge_elapsed >= WATER_EMERGE_DELAY:
 		_spawn_lake_monster()
+
+func _spawn_sky_boss() -> void:
+	if not world.get_map_id() == &"greenmeadow" or is_instance_valid(sky_boss):
+		return
+	var boss := MeadowLakeMonster.new()
+	boss.entity_id = _next_entity_id("sky_boss")
+	boss.setup(player, world, world.cell_to_world(Vector2i(20, 7)) - Vector2(0, 360))
+	boss.died.connect(_on_sky_boss_died)
+	boss.health_changed.connect(_on_sky_boss_health_changed)
+	world.add_child(boss)
+	sky_boss = boss
+	boss_title.text = _msg("FALLEN WORLD BOSS", "天降世界 Boss")
+	_on_sky_boss_health_changed(boss.health, boss.MAX_HEALTH)
+	boss_bar.show()
+	var landing := world.to_global(world.cell_to_world(Vector2i(20, 7)))
+	var fall_tween := create_tween()
+	fall_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	fall_tween.tween_property(boss, "global_position", landing, 1.2)
+	_show_toast(_msg("Something is falling from the sky!", "有什么东西从天上掉下来了！"))
+
+func _on_sky_boss_health_changed(current: int, maximum: int) -> void:
+	_set_boss_health(current, maximum)
+
+func _on_sky_boss_died(global_position: Vector2) -> void:
+	boss_bar.hide()
+	if is_instance_valid(sky_boss):
+		sky_boss.set_meta("death_handled", true)
+		sky_boss = null
+	_play_boss_death_feedback(global_position)
+	_show_toast(_msg("The fallen World Boss has been defeated.", "天降世界 Boss 已被击败。"))
+	_mark_save_dirty()
 
 func _spawn_lake_monster(restored_state: Dictionary = {}) -> void:
 	if game_state.has_defeated_boss(BOSS_LAKE) \

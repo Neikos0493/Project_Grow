@@ -7,19 +7,17 @@ signal close_pressed
 
 const GREENMEADOW_ID := &"greenmeadow"
 const SUNSET_SHORE_ID := &"sunset_shore"
-const WORLD_TREE_ID := &"world_tree"
 const RADAR_CENTER_Y := 205.0
-const ORBIT_RADII := [50.0, 82.0, 112.0]
+const ORBIT_RADII := [50.0, 82.0]
 const ORBIT_COLOR := Color("#879396")
-const POINT_RADII := [82.0, 50.0, 112.0]
-const POINT_COLORS := [Color("#63bb78"), Color("#df655f"), Color("#5b8fdf")]
-const POINT_ANGLES_DEGREES := [-140.0, 35.0, -25.0]
-const POINT_SIZES := [24.0, 20.0, 20.0]
+const POINT_RADII := [82.0, 50.0]
+const POINT_COLORS := [Color("#63bb78"), Color("#df655f")]
+const POINT_ANGLES_DEGREES := [-140.0, 35.0]
+const POINT_SIZES := [24.0, 20.0]
 
 @onready var close_button: Button = $CloseButton
 @onready var meadow_point: Button = $MeadowPoint
 @onready var pond_point: Button = $PondPoint
-@onready var tree_point: Button = $TreePoint
 @onready var title_label: Label = $Title
 
 var language := "en"
@@ -42,10 +40,8 @@ func _ready() -> void:
 	close_button.pressed.connect(func(): close_pressed.emit())
 	meadow_point.pressed.connect(func(): point_selected.emit(GREENMEADOW_ID))
 	pond_point.pressed.connect(func(): point_selected.emit(SUNSET_SHORE_ID))
-	tree_point.pressed.connect(func(): point_selected.emit(WORLD_TREE_ID))
 	_configure_point(meadow_point, POINT_COLORS[0], POINT_SIZES[0])
 	_configure_point(pond_point, POINT_COLORS[1], POINT_SIZES[1])
-	_configure_point(tree_point, POINT_COLORS[2], POINT_SIZES[2])
 	_layout_points()
 	resized.connect(_layout_points)
 	_apply_labels()
@@ -57,12 +53,10 @@ func _apply_labels() -> void:
 	title_label.text = "导航雷达" if chinese else "NAVIGATION RADAR"
 	meadow_point.tooltip_text = "绿野" if chinese else "Greenmeadow"
 	pond_point.tooltip_text = "风蚀沙壑" if chinese else "Wind-Scarred Gorge"
-	tree_point.tooltip_text = "世界树" if chinese else "World Tree"
 
 func _apply_point_state() -> void:
 	_set_point_state(meadow_point, GREENMEADOW_ID)
 	_set_point_state(pond_point, SUNSET_SHORE_ID)
-	_set_point_state(tree_point, WORLD_TREE_ID)
 
 func _set_point_state(point: Button, map_id: StringName) -> void:
 	var visible_point := map_id == current_map_id or map_id in unlocked_map_ids
@@ -104,7 +98,7 @@ func _make_point_style(color: Color, border_color: Color, point_size: float) -> 
 func _layout_points() -> void:
 	if not is_node_ready():
 		return
-	var points: Array[Button] = [meadow_point, pond_point, tree_point]
+	var points: Array[Button] = [meadow_point, pond_point]
 	for index in range(points.size()):
 		var point_position := _get_point_position(index)
 		points[index].position = point_position - Vector2.ONE * float(POINT_SIZES[index]) * 0.5
@@ -134,7 +128,7 @@ func _draw() -> void:
 	draw_circle(center, 6.0, Color("#f3c969"))
 	draw_circle(center, 2.0, Color("#26353b"))
 	for index in range(ORBIT_RADII.size()):
-		var map_id: StringName = [GREENMEADOW_ID, SUNSET_SHORE_ID, WORLD_TREE_ID][index]
+		var map_id: StringName = [GREENMEADOW_ID, SUNSET_SHORE_ID][index]
 		if not (map_id == current_map_id or map_id in unlocked_map_ids):
 			continue
 		var marker_color: Color = POINT_COLORS[index]
